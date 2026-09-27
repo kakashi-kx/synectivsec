@@ -1,0 +1,43 @@
+cff-version: 1.2.0
+message: "If you use this work, please cite it as below."
+title: "SynectivSec: A Composition Theory for Federated Agent Authority"
+abstract: >
+  A formal composition algebra for the joint preservation of safety
+  invariants across delegation chains, sequence policies, and cross-domain
+  federation for AI agent action governance. Includes a TLA+ verified
+  instance and a runnable attack harness demonstrating the tightness of
+  the three compatibility conditions (PC, RS, CBAT).
+authors:
+  - given-names: "Abhijith S"
+    alias: "kakashi4kx"
+    alias: "kakashi-kx"
+    affiliation: "Independent security researcher"
+    website: "https://www.linkedin.com/in/abhixjith"
+version: 0.2.0
+date-released: 2026-09-27
+license: Apache-2.0
+repository-code: "https://github.com/kakashi-kx/synectivsec"
+url: "https://github.com/kakashi-kx/synectivsec"
+keywords:
+  - agent security
+  - AI agents
+  - delegation chains
+  - sequence policy
+  - federation
+  - TLA+
+  - formal verification
+  - composition theorem
+  - MCP
+  - A2A
+  - attestation transitivity
+  - revocation
+preferred-citation:
+  type: generic
+  title: "SynectivSec: A Composition Theory for Federated Agent Authority"
+  authors:
+    - given-names: "Abhijith S"
+      alias: "kakashi4kx"
+      alias: "kakashi-kx"
+      website: "https://www.linkedin.com/in/abhixjith"
+  year: 2026
+  url: "https://github.com/kakashi-kx/synectivsec"
