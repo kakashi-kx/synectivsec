@@ -6,3 +6,4 @@ states/
 .DS_Store
 Thumbs.db
 *.out
+redteam/generated/
