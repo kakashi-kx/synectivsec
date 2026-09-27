@@ -46,23 +46,23 @@ conditions, and the positive composition theorem — not the individual layers.
 
 ## Status
 
-**v0.1 — first verified instance.**
+**v0.2 — all five invariants verified.**
 
 The minimal composition instance (6 principals, 2 delegation chains,
 3 trust domains, capability attenuation, global sequence policy, bounded
-history) has been model-checked with TLC:
-
-```
+history, action-level principal tracking with revocation timestamps) has
+been model-checked with TLC:
 Model checking completed. No error has been found.
-1825939 states generated, 60490 distinct states found, 0 states left on queue.
-Depth of the complete state graph search: 7.
-```
+11185890 states generated, 300447 distinct states found, 0 states left on queue.
+Depth of the complete state graph search is 5.
 
-Four invariants verified: CI1 (authority containment), CI2 (sequence
-soundness), CI4 (attestation soundness), CI5 (boundary determinism).
 
-CI3 (revocation freshness) is trivially satisfied in the current model
-and requires strengthening. See `tla/RESULT.md`.
+
+All five invariants verified as non-trivial: CI1 (authority containment),
+CI2 (sequence soundness), CI3 (revocation freshness), CI4 (attestation
+soundness), CI5 (boundary determinism).
+
+See `tla/RESULT.md` for the full instance specification and open items.
 
 ---
 

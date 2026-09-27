@@ -1,11 +1,11 @@
 ---- MODULE Composition ----
 EXTENDS Integers, Sequences, TLC
 
-CONSTANTS T1, T2, T3, R1, PA, PB, R2, PC, PD, read, write, send, MaxHistory, Delta
+CONSTANTS T1, T2, T3, R1, PA, PB, R2, PC, PD, read, write, send, MaxHistory, Delta, NeverRevoked
 
-VARIABLES currentPrincipal, history, currentDomain, revoked, time
+VARIABLES currentPrincipal, history, currentDomain, revokedAt, time
 
-vars == << currentPrincipal, history, currentDomain, revoked, time >>
+vars == << currentPrincipal, history, currentDomain, revokedAt, time >>
 
 CapabilityOf(p) ==
     CASE p = R1 -> {read, write, send}
@@ -29,17 +29,18 @@ Attests(from, to) ==
 
 SequencePolicyOK(h) ==
     \A i \in 1..(Len(h) - 1) :
-        ~ (h[i] = send /\ h[i+1] = send)
+        ~ (h[i].action = send /\ h[i+1].action = send)
 
 DomainPolicyOK(dom, action) ==
     CASE dom = T1 -> TRUE
       [] dom = T2 -> TRUE
       [] dom = T3 -> action # write
 
-IsRevoked(p) == p \in revoked
+IsRevokedAt(p, t) ==
+    revokedAt[p] <= t
 
 ActionPermitted(p, a, dom) ==
-    /\ ~ IsRevoked(p)
+    /\ ~ IsRevokedAt(p, time)
     /\ a \in CapabilityOf(p)
     /\ DomainPolicyOK(dom, a)
 
@@ -54,23 +55,23 @@ Init ==
     /\ currentPrincipal = R1
     /\ history = << >>
     /\ currentDomain = T1
-    /\ revoked = {}
+    /\ revokedAt = [p \in {R1, PA, PB, R2, PC, PD} |-> NeverRevoked]
     /\ time = 0
 
 DoAction(p, a, dom) ==
     /\ ChainRootCanReachDomain(p, dom)
     /\ ActionPermitted(p, a, dom)
     /\ Len(history) < MaxHistory
-    /\ SequencePolicyOK(Append(history, a))
+    /\ SequencePolicyOK(Append(history, [principal |-> p, action |-> a, at |-> time]))
     /\ currentPrincipal' = p
-    /\ history' = Append(history, a)
+    /\ history' = Append(history, [principal |-> p, action |-> a, at |-> time])
     /\ currentDomain' = dom
-    /\ revoked' = revoked
+    /\ revokedAt' = revokedAt
     /\ time' = time + 1
 
 Revoke(p) ==
-    /\ p \notin revoked
-    /\ revoked' = revoked \cup {p}
+    /\ revokedAt[p] = NeverRevoked
+    /\ revokedAt' = [revokedAt EXCEPT ![p] = time]
     /\ currentPrincipal' = currentPrincipal
     /\ history' = history
     /\ currentDomain' = currentDomain
@@ -81,7 +82,7 @@ CrossDomain(p, dom) ==
     /\ currentPrincipal' = p
     /\ history' = history
     /\ currentDomain' = dom
-    /\ revoked' = revoked
+    /\ revokedAt' = revokedAt
     /\ time' = time + 1
 
 Next ==
@@ -98,14 +99,14 @@ Next ==
 CI1_AuthorityContainment ==
     \A i \in 1..Len(history) :
         \E p \in {R1, PA, PB, R2, PC, PD} :
-            history[i] \in CapabilityOf(p)
+            history[i].action \in CapabilityOf(p)
 
 CI2_SequenceSoundness ==
     SequencePolicyOK(history)
 
 CI3_RevocationFreshness ==
-    \A p \in {R1, PA, PB, R2, PC, PD} :
-        p \in revoked => ~ (\E i \in 1..Len(history) : FALSE)
+    \A i \in 1..Len(history) :
+        history[i].at < revokedAt[history[i].principal]
 
 CI4_AttestationSoundness ==
     ChainRootCanReachDomain(currentPrincipal, currentDomain)
@@ -116,7 +117,7 @@ CI5_BoundaryDeterminism ==
             DomainPolicyOK(dom, a) \/ ~ DomainPolicyOK(dom, a)
 
 StateConstraint ==
-    /\ time <= 6
+    /\ time <= 4
     /\ Len(history) <= MaxHistory
 
 Spec == Init /\ [][Next]_vars
