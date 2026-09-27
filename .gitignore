@@ -1,0 +1,8 @@
+states/
+*.fp
+*.class
+*.swp
+*~
+.DS_Store
+Thumbs.db
+*.out
