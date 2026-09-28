@@ -14,25 +14,29 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
 
       - name: Download tla2tools.jar
         run: |
-          wget -q https://github.com/tlaplus/tlaplus/releases/latest/download/tla2tools.jar
+          mkdir -p ~/tla
+          wget -q https://github.com/tlaplus/tlaplus/releases/latest/download/tla2tools.jar -O ~/tla/tla2tools.jar
+          ls -la ~/tla/
 
       - name: Run TLC
         run: |
           cd tla
-          java -Xmx2g -XX:+UseParallelGC -jar ../tla2tools.jar \
+          java -Xmx2g -XX:+UseParallelGC -jar ~/tla/tla2tools.jar \
               -workers 2 -config Composition.cfg Composition.tla
 
       - name: Run attack harness
+        env:
+          TLA_JAR: /home/runner/tla/tla2tools.jar
         run: |
           cd redteam
           chmod +x run_all.sh
