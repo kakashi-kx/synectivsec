@@ -1,0 +1,39 @@
+name: TLA+ verification
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  tlc:
+    name: TLC model check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Download tla2tools.jar
+        run: |
+          wget -q https://github.com/tlaplus/tlaplus/releases/latest/download/tla2tools.jar
+
+      - name: Run TLC
+        run: |
+          cd tla
+          java -Xmx2g -XX:+UseParallelGC -jar ../tla2tools.jar \
+              -workers 2 -config Composition.cfg Composition.tla
+
+      - name: Run attack harness
+        run: |
+          cd redteam
+          chmod +x run_all.sh
+          ./run_all.sh
