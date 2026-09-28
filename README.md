@@ -1,4 +1,5 @@
 
+<img src="assets/banner.svg" alt="SynectivSec — a composition theorem for federated agent authority" width="1200">
 
 # SynectivSec
 
