@@ -12,6 +12,7 @@ authors:
     alias: "kakashi4kx"
     alias: "kakashi-kx"
     affiliation: "Independent security researcher"
+    orcid: "https://orcid.org/0009-0009-9232-7820" 
     website: "https://www.linkedin.com/in/abhixjith"
 version: 0.2.0
 date-released: 2026-09-27
@@ -36,8 +37,8 @@ preferred-citation:
   title: "SynectivSec: A Composition Theory for Federated Agent Authority"
   authors:
     - given-names: "Abhijith S"
-      alias: "kakashi4kx"
-      alias: "kakashi-kx"
-      website: "https://www.linkedin.com/in/abhixjith"
-  year: 2026
-  url: "https://github.com/kakashi-kx/synectivsec"
+    alias: "kakashi4kx"
+    alias: "kakashi-kx"
+    affiliation: "Independent security researcher"
+    orcid: "https://orcid.org/0009-0009-9232-7820"
+    website: "https://www.linkedin.com/in/abhixjith"
