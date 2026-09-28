@@ -34,7 +34,6 @@
   <!-- author, right aligned -->
   <g font-family="-apple-system,'Segoe UI','Helvetica Neue',Arial,sans-serif" text-anchor="end">
     <text x="1144" y="60" font-size="15" fill="#f0f6fc">Abhijith S</text>
-    <text x="1144" y="60" font-size="15" fill="#f0f6fc">kakashi4kx</text>
     <text x="1144" y="82" font-size="13" fill="#7d8590">ORCID 0009-0009-9232-7820</text>
     <text x="1144" y="104" font-size="13" fill="#7d8590">github.com/kakashi-kx/synectivsec</text>
     <text x="1144" y="126" font-size="13" fill="#7d8590">TLA+ · Python harness · paper (16 pp.)</text>
