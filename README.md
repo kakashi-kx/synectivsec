@@ -1,216 +1,199 @@
+
+
 # SynectivSec
 
 **A composition theorem for federated agent authority.**
 
-Spec. Model-checked verification. Attack harness. Research artifact — not a product.
+[![CI](https://img.shields.io/github/actions/workflow/status/kakashi-kx/synectivsec/tla.yml?label=TLC&labelColor=24292f&color=1a7f37&style=flat)](https://github.com/kakashi-kx/synectivsec/actions)
+![scope](https://img.shields.io/badge/verification-bounded%20instance-9a6700?labelColor=24292f&style=flat)
+[![paper](https://img.shields.io/badge/paper-preprint%20(16%20pp.)-0969da?labelColor=24292f&style=flat)](paper/)
+![TLA+](https://img.shields.io/badge/TLA%2B-TLC-57606a?labelColor=24292f&style=flat)
+![license](https://img.shields.io/badge/license-CC--BY%204.0%20%7C%20Apache--2.0-57606a?labelColor=24292f&style=flat)
+[![ORCID](https://img.shields.io/badge/ORCID-0009--0009--9232--7820-A6CE39?logo=orcid&logoColor=white&labelColor=24292f&style=flat)](https://orcid.org/0009-0009-9232-7820)
 
-**Author:** Abhijith S ([@kakashi-kx](https://github.com/kakashi-kx), [LinkedIn](https://www.linkedin.com/in/abhixjith)) — independent security researcher.
+Delegation chains, sequence policies, and cross-domain federation each have formal
+treatments. None states when their composition preserves the safety properties of its
+parts. This repository gives three compatibility conditions, a preservation theorem,
+a bounded-instance TLA+ check, and a runnable harness showing each condition is
+independent of the other two.
+
+[Paper](paper/) · [Spec](docs/) · [Claims ledger](#claims-ledger) · [Reproduce](#reproduce) · [How to break this](#how-to-break-this)
+
+> [!IMPORTANT]
+> The theorem is model-checked on one bounded instance. It is not proved in general.
+> The exact scope is stated under [Verification](#verification) and in
+> [`LIMITATIONS.md`](LIMITATIONS.md).
 
 ---
 
-## What This Is
+## Result
 
-Three layers of AI-agent security exist independently in the current literature:
-delegation chains (how authority attenuates across hops), sequence policies (how
-actions compose over time), and cross-organizational federation (how authority
-crosses trust boundaries). Each has been formalized on its own. We have not
-found the composition theorem — the conditions under which composing all three
-preserves the safety invariants each guarantees individually — stated or proved
-in that literature. Spera (2026) proves a negative result showing composition
-can break safety in the adjacent multi-agent capability setting.
+```mermaid
+flowchart LR
+    D["Delegation chains<br/>D"] --> C
+    S["Sequence policy<br/>S"] --> C
+    F["Federation graph<br/>F"] --> C
+    C(["D ⊗ S ⊗ F"])
+    PC["PC"] -. guards .-> C
+    RS["RS"] -. guards .-> C
+    CB["CBAT"] -. guards .-> C
+    C --> I["CI1 – CI5"]
+```
 
-SynectivSec states and model-checks the positive composition theorem: three
-compatibility conditions, sufficient (and, per the attack harness below,
-individually non-redundant) for the composition to preserve five safety invariants.
+> **Theorem (Composition Preservation).** If $\mathrm{PC} \land \mathrm{RS} \land \mathrm{CBAT}$
+> hold for $D \otimes S \otimes F$, then $\mathrm{CI1}$ through $\mathrm{CI5}$ hold.
+
+| Condition | Statement | Restates | Added here |
+|---|---|---|---|
+| PC | every action producible under a chain in `D` is classified by `S` | Bounded Agents (arXiv:2608.15888) | joint use with RS and CBAT |
+| RS | revocation reaches every attested domain within δ | SPKI/SDSI validity intervals (RFC 2693 §5.4) | applied over a domain graph, jointly |
+| CBAT | attestation composes across domains unless explicitly bounded | speaks-for transitivity (Lampson, Abadi, Burrows, Wobber, TOCS 10(4), 1992, §3.2); bounded variant (§3.3, note on P10); linked roles (Li, Mitchell, Winsborough, RT, 2002) | joint use with PC and RS |
+
+The claimed contribution is the composition operator, the joint formulation of the
+three conditions, and the preservation theorem. No condition is claimed as new in
+isolation. Full treatment of related work is in [`docs/POSITIONING.md`](docs/POSITIONING.md).
+
+| Invariant | Meaning |
+|---|---|
+| CI1 | Authority containment |
+| CI2 | Sequence soundness |
+| CI3 | Revocation freshness |
+| CI4 | Attestation soundness |
+| CI5 | Boundary determinism |
 
 ---
 
-## The Theorem
+## Claims ledger
 
-Let `D` be a delegation chain, `S` a sequence policy, `F` a federation graph.
-Their composition `D ⊗ S ⊗ F` is a labeled transition system (full construction
-in `docs/ALGEBRA.md`).
+Each claim carries one of three labels. The labels are used the same way in the paper.
 
-**Composition Preservation Theorem.** If three compatibility conditions hold —
-
-- **PC** (Policy Compatibility) — every action producible under any chain in `D`
-  is classified by `S`'s action alphabet
-- **RS** (Revocation Synchronization) — revocation in one trust domain propagates
-  to every domain reachable by an attestation path within a bounded time `δ`
-- **CBAT** (Cross-Boundary Attestation Transitivity) — attestation composes
-  across domains unless a domain explicitly bounds it
-
-— then the composition preserves five invariants: authority containment (CI1),
-sequence soundness (CI2), revocation freshness (CI3), attestation soundness
-(CI4), and boundary determinism (CI5).
-
-**Each of the three conditions restates prior work:**
-
-| Condition | Restates | Where |
+| Claim | Status | Evidence |
 |---|---|---|
-| CBAT | Speaks-for transitivity: "it is also easy to show that ⊢ is monotonic in both arguments and that ⇒ is transitive" | Lampson, Abadi, Burrows, Wobber, *Authentication in Distributed Systems: Theory and Practice*, ACM TOCS 10(4):265–310, 1992, §3.2 *(primary source verified)* |
-| CBAT (bounding) | The same paper's suggestion to use a qualified form of transitivity: "the general axiom is too powerful... if the conclusion uses a qualified form of ⇒ it may be more acceptable"; closest formal analog is RT's linked roles | Lampson et al. 1992 §3.3 (note on P10) *(primary source verified)*; Li, Mitchell, Winsborough, *RT: A Role-Based Trust-Management Framework*, IEEE S&P 2002 *(primary source pending)* |
-| RS | Validity intervals on certificates: "How long are you willing to let the world believe and act on a statement you know to be false?" | RFC 2693, SPKI Certificate Theory, §5.4 *(primary source verified)* |
-| PC | Scope/budget tracking across sequences of actions | Bounded Agents, arXiv:2608.15888, 2026 *(secondary source)* |
-
-The claimed contribution is the composition operator, the three conditions taken
-*jointly*, and the preservation theorem over their combination — not any
-condition on its own. See `docs/POSITIONING.md` for the full prior-art
-treatment, including SentinelAgent, AgentRFC, Wang, COA-MAS v2, OAP, PCAS, and
-AgentGuardian.
+| Composition operator and model are well defined | Defined | [`docs/ALGEBRA.md`](docs/ALGEBRA.md) |
+| PC, RS, CBAT imply CI1–CI5 in the abstract model | Proof (see paper) | [`paper/`](paper/) |
+| No violation of CI1–CI5 on the checked instance | Verified (bounded) | [`tla/RESULT.md`](tla/RESULT.md) |
+| Each condition is independent of the other two | Verified (counterexample) | [`redteam/`](redteam/) |
+| The theorem holds for arbitrary instance sizes | Open | not claimed |
+| Behavior of real agent deployments matches the model | Open | not claimed |
 
 ---
 
-## Verification Status
-
-**Model-checked on a bounded instance. Not proved in general.**
+## Verification
 
 ```
-Instance: 6 principals, 2 delegation chains, 3 trust domains, capability
-          attenuation, global sequence policy, action-level principal
-          tracking with revocation timestamps.
-State constraint: time ≤ 4, Len(history) ≤ 3.
-
 Model checking completed. No error has been found.
 11,185,890 states generated, 300,447 distinct states found, 0 violations.
-Depth of the complete state graph search: 5.
-Runtime: ~33 seconds on 4 parallel workers.
 ```
 
-Reproduce with Java 17+ and `tla2tools.jar`:
+Instance: 6 principals, 2 delegation chains, 3 trust domains, capability attenuation,
+global sequence policy, bounded history (time ≤ 4). Runtime is about 33 seconds. The
+authoritative configuration and full output are in [`tla/`](tla/); CI reruns the check
+on every push.
+
+> [!NOTE]
+> A bounded model check shows that no violation exists within the checked instance.
+> It does not show the theorem for larger instances. Scaling is limited by TLA+
+> state-space growth, and a mechanized general proof is future work.
+
+---
+
+## Independence of the conditions
+
+Dropping any one condition while keeping the other two admits a reachable state that
+violates a named invariant. Each attack is a runnable script backed by a TLC
+counterexample trace.
+
+| Attack | Condition dropped | Invariant violated |
+|---|---|---|
+| Alphabet escape | PC | see `redteam/` |
+| Revocation race across domains | RS | see `redteam/` |
+| Attestation laundering | CBAT | see `redteam/` |
+
+This shows the conditions are non-redundant in the constructions given. It does not
+show that no fourth condition is needed.
+
+---
+
+## How to break this
+
+The most useful contribution is a counterexample. If you can construct a composition
+where PC, RS, and CBAT all hold and a CI1–CI5 invariant is violated, the theorem as
+stated is false. Open an issue with a minimal reproduction, ideally as a TLA+ trace or
+a script under `redteam/`. Disagreement with the model's assumptions is also in scope;
+state which assumption and why.
+
+---
+
+## Reproduce
+
+Requires Java 17 or later and `tla2tools.jar`.
 
 ```
 cd tla
-java -XX:+UseParallelGC -jar tla2tools.jar -workers 4 -config Composition.cfg Composition.tla
+java -XX:+UseParallelGC -jar tla2tools.jar -config Composition.cfg Composition.tla
 ```
 
-**What this result does and does not show:**
-
-- **CI1–CI5 are all verified as non-trivial.** The model exercises real
-  attenuation, sequencing, revocation, attestation, and boundary structure.
-  TLC exhausts the reachable state space and finds zero violations.
-- **CI3 (revocation freshness)** is non-trivial: the model tracks each
-  principal's revocation timestamp (`revokedAt`) and checks every historical
-  action against its actor's revocation time
-  (`history[i].at < revokedAt[history[i].principal]`). The guard on the
-  transition relation prevents post-revocation actions, and the invariant
-  confirms none occur.
-- **The result is bounded.** `time ≤ 4`, one specific instance size. It is
-  evidence for the theorem, not a proof of it. The unbounded, general case is
-  open. See Open Problems.
-
----
-
-## Attack Harness
-
-The contrapositive of the theorem — drop any one compatibility condition and a
-concrete invariant violation exists — is what makes the theorem falsifiable
-rather than definitional. `redteam/` implements one runnable attack per
-condition, each constructing a composition state that satisfies the other two
-conditions but violates the invariant tied to the dropped one:
-
-- **PC violation** — an action reachable under a delegation chain but outside
-  the sequence policy's recognized alphabet → CI2 violated
-- **RS violation** — action taken in the propagation window before a
-  cross-domain revocation takes effect → CI3 violated
-- **CBAT violation** — attestation accepted across a domain boundary where
-  transitivity was supposed to be explicitly bounded → CI4 violated
-
-All three attacks succeed. Run them with `./redteam/run_all.sh`. Full results
-in `redteam/RESULTS.md`.
-
-This is the independence argument: the three conditions are not a conservative
-superset of what's needed, they're individually load-bearing.
-
----
-
-## How to Break This
-
-The attack harness only proves the three conditions are non-redundant in the
-constructions we wrote. It does not prove they're jointly *sufficient* beyond
-the bounded instance, and it does not prove no fourth condition is needed.
-
-If you can construct a composition state where PC, RS, and CBAT all hold and a
-CI1–CI5 invariant is nonetheless violated, that falsifies the theorem as
-stated. File it as an issue against `redteam/` with a minimal reproduction —
-that is the single most useful contribution this repository can receive.
-
----
-
-## Repository Structure
+The attack harness needs Python 3:
 
 ```
-synectivsec/
-├── tla/
-│   ├── Composition.tla     # TLA+ model
-│   ├── Composition.cfg     # TLC configuration
-│   ├── RESULT.md           # Full verification result and interpretation
-│   └── RESULT.txt          # Raw TLC output
-├── redteam/                # Attack harness — one script per condition
-├── docs/
-│   ├── ALGEBRA.md          # Formal construction of D ⊗ S ⊗ F
-│   ├── POLICY.md           # Sequence policy language
-│   ├── FEDERATION.md       # Cross-domain trust and revocation propagation
-│   ├── AUDIT.md            # Tamper-evident logging, external verification
-│   └── POSITIONING.md      # Full prior-art treatment
-├── paper/                  # Research paper (in progress)
-├── LIMITATIONS.md
-├── CONTRIBUTING.md
-├── CITATION.cff
-└── README.md
+cd redteam
+python3 <script>.py
 ```
 
 ---
 
-## Open Problems
+## Reading guide
 
-1. **Unbounded verification is open.** TLC checks one bounded instance
-   (`time ≤ 4`). An inductive invariant proof or a Lean/Coq formalization of
-   the general theorem has not been attempted.
-2. **Scale.** The verified instance is minimal (6 principals, 2 chains, 3
-   domains). Whether the theorem and this TLA+ approach remain tractable at
-   realistic scale is unexamined.
-3. **RS's joint formulation requires primary-source verification.** The
-   pairing of time-bounded revocation propagation with transitive attestation
-   as a single compatibility condition is claimed as novel. A systematic
-   search of the 1990s–2010s trust-management literature is required.
-4. **CBAT / RT overlap not yet fully reconciled.** RT's linked roles are cited
-   as the closest prior mechanism for CBAT's bounding clause; a precise
-   statement of where CBAT extends RT versus restates it is not yet written.
-   See `docs/POSITIONING.md`.
-5. **Comparison to SentinelAgent and AgentRFC.** The delegation layer overlaps
-   with SentinelAgent's DCC; the composition concern overlaps with AgentRFC's
-   Composition Safety principle. Direct comparison on the same instance is
-   required for the paper.
+| If you are | Start with |
+|---|---|
+| Reviewing the theorem | `paper/` (proof), then `docs/ALGEBRA.md` |
+| Checking the mechanization | `tla/Composition.tla`, `tla/Composition.cfg`, `tla/RESULT.md` |
+| Trying to falsify it | `redteam/`, then [How to break this](#how-to-break-this) |
+| Assessing prior art | `docs/POSITIONING.md` |
+| Applying the ideas to agent systems | `docs/POLICY.md`, `docs/FEDERATION.md`, `docs/AUDIT.md` |
 
-Full limitation list: `LIMITATIONS.md`.
+---
+
+## Repository layout
+
+```
+tla/            TLA+ model, TLC configuration, verification results
+redteam/        Attack harness: one script per compatibility condition
+docs/           ALGEBRA, POLICY, FEDERATION, AUDIT, POSITIONING
+paper/          Paper (PDF and LaTeX source)
+LIMITATIONS.md  What is not done and what is not claimed
+CONTRIBUTING.md How to contribute
+CITATION.cff    Citation metadata
+```
+
+There is no reference implementation. This is a research artifact, not a product.
+
+---
+
+## Limitations
+
+- Verification is bounded (one instance, time ≤ 4). The general theorem is not mechanized.
+- The joint formulation of RS with the other two conditions still needs a systematic
+  prior-art search.
+- The relationship between CBAT and RT's linked roles is cited but not yet fully
+  reconciled.
+- The model abstracts real agent deployments. No claim is made about specific systems.
+
+See [`LIMITATIONS.md`](LIMITATIONS.md) for the maintained list.
 
 ---
 
 ## Author
 
-**Abhijith S** — independent security researcher and red teamer. Solo project.
+**Abhijith S** [kakashi4kx] — security researcher. Formal methods applied to agent
+authorization; red team background.
 
-- GitHub: [@kakashi-kx](https://github.com/kakashi-kx)
-- Handle: `kakashi4kx`
-- LinkedIn: [www.linkedin.com/in/abhixjith](https://www.linkedin.com/in/abhixjith)
+- **Interests:** agent authorization, trust composition, offensive-security research
+- **This repo:** a composition theorem for federated agent authority, with TLA+ verification and an independence harness
 
----
+[ORCID](https://orcid.org/0009-0009-9232-7820) · [GitHub](https://github.com/kakashi-kx) · [LinkedIn](https://linkedin.com/in/abhixjith)
 
-## License
+## Citation and license
 
-- **Code** (`tla/`, `redteam/`): Apache License 2.0 — see `LICENSE`
-- **Documentation** (`docs/`, `README.md`): CC-BY 4.0 — see `LICENSE-spec`
-
----
-
-## Citation
-
-If you use this work, cite it via `CITATION.cff` or:
-
-> Abhijith S (kakashi-kx). "SynectivSec: A Composition Theory for Federated
-> Agent Authority." 2026. https://github.com/kakashi-kx/synectivsec
-
----
-
-*Last updated: 2026-09-27*
+Citation metadata is in [`CITATION.cff`](CITATION.cff). Specification and paper under
+CC-BY 4.0, code under Apache-2.0.
