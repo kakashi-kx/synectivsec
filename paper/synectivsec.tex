@@ -1,0 +1,1218 @@
+%==============================================================================
+%  SynectivSec: A Composition Theorem for Federated Agent Authority
+%
+%  Author: Abhijith S (ORCID 0009-0009-9232-7820)
+%  Artifact: https://github.com/kakashi-kx/synectivsec
+%
+%  Compile with: pdflatex synectivsec.tex (run twice for refs)
+%==============================================================================
+\documentclass[11pt,a4paper]{article}
+
+% --- Encoding & fonts -------------------------------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+
+% --- Layout -----------------------------------------------------------------
+\usepackage[margin=1in]{geometry}
+\usepackage{parskip}
+
+% --- Math -------------------------------------------------------------------
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{stmaryrd}      % for \llbracket, \rrbracket
+\usepackage{mathrsfs}
+
+% --- Theorem environments ---------------------------------------------------
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{proposition}[theorem]{Proposition}
+
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{example}[theorem]{Example}
+
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+% --- Tables -----------------------------------------------------------------
+\usepackage{booktabs}
+
+% --- Hyperlinks -------------------------------------------------------------
+\usepackage[hidelinks,colorlinks=true,linkcolor=blue!50!black,
+            citecolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
+\usepackage{cleveref}
+
+% --- PDF metadata -----------------------------------------------------------
+\hypersetup{
+  pdftitle={SynectivSec: A Composition Theorem for Federated Agent Authority},
+  pdfauthor={Abhijith S},
+  pdfsubject={Composition theorem for delegation chains, sequence policies, and federation},
+  pdfkeywords={agent security, delegation chains, sequence policies, federation,
+               TLA+, composition theorem, independence result},
+}
+
+% --- Code listings ----------------------------------------------------------
+\usepackage{listings}
+\usepackage{xcolor}
+\lstdefinelanguage{TLA+}{
+  morekeywords={MODULE,EXTENDS,CONSTANTS,VARIABLES,ASSUME,THEOREM,LEMMA,
+                INSTANCE,LOCAL,CONSTANT,VARIABLE,DEFINE,RECURSIVE,
+                CASE,IF,THEN,ELSE,LET,IN,CHOOSE,DOMAIN,SUBSET,UNION,
+                EXCEPT,ENABLED,UNCHANGED,WF_,SF_,\A,\E,\in,\notin,
+                \subseteq,\subset,\cup,\cap,\o,\X,\div,\mod,\leq,\geq,
+                \neq,=,<,>,=>,<=>,~,/\,\/,[] ,<>,\EE,\AA},
+  sensitive=true,
+  morecomment=[l]{\*},
+  morestring=[b]"
+}
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{blue!60!black},
+  commentstyle=\color{green!50!black}\itshape,
+  stringstyle=\color{red!60!black},
+  frame=single,
+  breaklines=true,
+  showstringspaces=false,
+  columns=fullflexible
+}
+
+% --- Bibliography -----------------------------------------------------------
+% We use a simple manual bibliography to avoid requiring .bib tooling.
+% References are listed in \begin{thebibliography} at the end.
+
+% --- Title ------------------------------------------------------------------
+\title{SynectivSec: A Composition Theorem for\\Federated Agent Authority}
+
+\author{
+  Abhijith S\thanks{%
+    Independent Researcher.\\
+    ORCID: \href{https://orcid.org/0009-0009-9232-7820}{0009-0009-9232-7820}.\\
+    GitHub: \href{https://github.com/kakashi-kx}{@kakashi-kx}.\\
+    Artifact: \href{https://github.com/kakashi-kx/synectivsec}{github.com/kakashi-kx/synectivsec}.
+  }
+}
+
+\date{September 2026}
+
+%==============================================================================
+\begin{document}
+\maketitle
+
+%------------------------------------------------------------------ Abstract --
+\begin{abstract}
+Delegation chains, sequence policies, and cross-domain federation each have
+formal treatments in the security and distributed-systems literature, but no
+result states when their \emph{composition} preserves the safety properties of
+its parts. We give three compatibility conditions under which it does, prove
+the preservation theorem by structural induction over the transition relation,
+and show that dropping any one condition admits a concrete violation. We
+model-check the construction in TLA+ on a bounded instance
+(11{,}185{,}890 states generated, 300{,}447 distinct, zero violations of the
+five stated invariants) and state exactly where the proof and the verification
+stop. The individual conditions are not novel---each restates prior work---but
+the composition operator, the joint formulation of the conditions, and the
+preservation theorem are. The artifact is released at
+\url{https://github.com/kakashi-kx/synectivsec}.
+\end{abstract}
+
+%---------------------------------------------------------------- Introduction --
+\section{Introduction}
+\label{sec:intro}
+
+Autonomous AI agents take actions: they call tools, move funds, send
+communications, and invoke other agents. Each action is the composition of
+several layers of authority and policy. A delegation chain establishes how
+authority attenuates from a root principal to the acting agent. A sequence
+policy constrains the order and multiplicity of actions over time. A
+federation graph determines which trust domains accept whose attestations and
+how revocation propagates across organizational boundaries.
+
+Each of these layers has been studied separately. Delegation chains are
+formalized in the access-control literature as far back as Lampson, Abadi,
+Burrows, and Wobber~\cite{lampson1992authentication} and in the SPKI/SDSI
+certificate theory~\cite{rfc2693spki}; more recently, in the delegation-chain
+calculi of the agent-security literature~\cite{sentinelagent2026}. Sequence
+policies over action histories are grounded in
+Schneider's work on enforceable security policies~\cite{schneider2000enforceable}
+and in modern agent frameworks such as the Agentic Principal
+Chain~\cite{boundedagents2026}. Cross-domain federation is discussed in
+federated governance testbeds~\cite{wang2026federated} and in the meta-framework
+COA-MAS v2~\cite{coamas2026}.
+
+What is missing is a \emph{composition theorem}: a statement of the conditions
+under which the composition of all three layers preserves the safety invariants
+of each. This absence is not accidental. Compositionality of security
+properties is difficult in general: McLean~\cite{mclean1994general} showed that
+safety is not preserved under composition without strong assumptions, and
+recent work in agent security has made the difficulty concrete.
+Spera~\cite{spera2026noncompositionality} proves a non-compositionality result
+showing that two individually safe agents can jointly reach a forbidden state
+through an emergent conjunctive dependency. AgentRFC~\cite{agentrfc2026}
+documents 20 cross-protocol violations across five composition patterns.
+
+The difficulty is real, but the composition question is not hopeless. We give
+a positive result for a specific class of systems: those satisfying three
+compatibility conditions. Under these conditions, the composition preserves
+five safety invariants. We prove the theorem by structural induction over the
+transition relation and verify it in TLA+ on a bounded instance. We further
+show that each condition is non-redundant: dropping any one admits a
+counterexample.
+
+\paragraph{Contributions.}
+
+\begin{enumerate}
+  \item \textbf{The composition operator $\otimes$} for the joint treatment of
+  delegation chains, sequence policies, and federated attestation
+  (\S\ref{sec:model}).
+  \item \textbf{Three compatibility conditions}---Policy Compatibility (PC),
+  Revocation Synchronization (RS), and Cross-Boundary Attestation
+  Transitivity (CBAT)---as a sufficient set for the preservation of five
+  safety invariants (\S\ref{sec:conditions}).
+  \item \textbf{A preservation theorem} (\Cref{thm:preservation}) proved by
+  structural induction over the transition relation
+  (\S\ref{sec:proof}).
+  \item \textbf{A mechanized verification} in TLA+ on a bounded instance, with
+  the raw output and reproduction instructions (\S\ref{sec:verification}).
+  \item \textbf{An independence result}: each condition is non-redundant, with
+  a runnable counterexample per condition (\S\ref{sec:independence}).
+\end{enumerate}
+
+\paragraph{What is not claimed.}
+
+We do not claim novelty for any of the three conditions in isolation. CBAT
+restates the \emph{speaks-for} transitivity of
+Lampson~et~al.~\cite{lampson1992authentication} with the bounded variant the
+same paper suggests. RS applies the validity-interval concept of SPKI
+RFC~2693~\cite{rfc2693spki} to a domain graph with an explicit propagation
+bound. PC relates to the sequence-policy work of
+Bounded Agents~\cite{boundedagents2026} and
+Schneider~\cite{schneider2000enforceable}. The claimed contribution is the
+\emph{composition} of the three conditions, not their individual content. A
+full lineage is given in \Cref{tab:lineage}.
+
+\paragraph{Paper organization.}
+
+\Cref{sec:adversaries} presents the adversary model that motivates the
+composition question. \Cref{sec:model} defines the three layers and the
+composition operator. \Cref{sec:conditions} states the three compatibility
+conditions and the preservation theorem, with a per-condition lineage table.
+\Cref{sec:proof} gives the proof. \Cref{sec:verification} reports the TLA+
+verification. \Cref{sec:independence} reports the independence result and the
+attack harness. \Cref{sec:related} discusses related work.
+\Cref{sec:limitations} states limitations and threats to validity.
+\Cref{sec:conclusion} concludes. The appendices contain the full proof
+(\Cref{app:proof}) and the TLA+ module (\Cref{app:tla}).
+
+%----------------------------------------------------- Composition adversaries --
+\section{Composition adversaries}
+\label{sec:adversaries}
+
+The adversaries that motivate this work are not the classical single-layer
+attackers. They exist only because the three layers compose. We catalogue them
+by the composition-specific capability each requires, following the attack
+catalog in the artifact's \texttt{docs/ALGEBRA.md} and
+\texttt{redteam/README.md}.
+
+\begin{definition}[Composition adversary]
+A \emph{composition adversary} is an attacker whose power derives from the
+interaction of the delegation, sequence, and federation layers, and whose goal
+is to cause an action to occur that no single layer would authorize.
+\end{definition}
+
+\Cref{tab:adversaries} lists the eight adversary classes we consider. Each is
+characterized by the composition-specific capability it requires and the
+invariant it seeks to violate.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{@{}p{0.8cm}p{3.6cm}p{4.2cm}p{4.2cm}@{}}
+\toprule
+\textbf{ID} & \textbf{Capability} & \textbf{Goal} & \textbf{Invariant at risk} \\
+\midrule
+AC-1 & Holds a valid delegation chain & Extend it beyond intent, relying on the sequence policy not seeing the extension & CI2, CI4 \\
+AC-2 & Controls two chains & Interleave actions such that no single chain's sequence policy fires & CI2 \\
+AC-3 & Holds attestations in two domains & Launder authority across non-transitive attestation paths & CI4 \\
+AC-4 & Controls timing across domains & Act in the window before revocation propagates & CI3 \\
+AC-5 & Can craft action parameters & Produce an action outside the sequence policy's recognized alphabet & CI2 \\
+AC-6 & Observes one domain's attestations & Replay an attestation in a domain where it was not issued & CI4 \\
+AC-7 & Controls multiple agents & Jointly reach a forbidden state, each individually authorized & CI1--CI5 \\
+AC-8 & Exploits trust-boundary ambiguity & Cause two domains to each believe the other's policy applies & CI5 \\
+\bottomrule
+\end{tabular}
+\caption{Composition adversary classes. Each exists only under composition.}
+\label{tab:adversaries}
+\end{table}
+
+The key observation is that AC-1 through AC-8 are not hypothetical. Each
+corresponds to an attack that has been demonstrated in the agent-security
+literature or is a natural extension of one. AC-7 (emergent conjunctive
+authority) is the Spera non-compositionality
+result~\cite{spera2026noncompositionality}. AC-3 and AC-6 (attestation
+laundering and replay) are natural cross-domain analogues of attacks documented
+in the trust-management literature. AC-4 (revocation race) is the composition
+of the classic time-of-check/time-of-use problem with cross-domain
+propagation. AC-5 (alphabet escape) is specific to the composition of the
+sequence layer with delegation.
+
+Against this adversary set, the composition question is: under what conditions
+does the composition of the three layers prevent all of AC-1 through AC-8?
+
+%------------------------------------------------------------------ Model --
+\section{Model}
+\label{sec:model}
+
+We define the three layers, the composition operator, and the safety
+invariants. The definitions here are the specification; the artifact's
+\texttt{docs/ALGEBRA.md} mirrors them, and
+\texttt{tla/Composition.tla} implements them in TLA+.
+
+\subsection{Principals and capabilities}
+
+A \emph{principal} is a named entity that can sign statements, be delegated
+authority, and perform actions. Write $\mathsf{Principal}$ for the finite set
+of principals in a system, and $p, q, r, \ldots$ for elements of it.
+
+A \emph{capability} is an atomic permission. Write $\mathsf{Capability}$ for
+the finite set of capabilities, and $c, c', \ldots$ for elements. Capabilities
+form a lattice $\langle \mathsf{Capability}, \sqsubseteq \rangle$ in which
+$c \sqsubseteq c'$ means $c$ is at least as strong as $c'$ (i.e., $c$ permits
+everything $c'$ permits, and possibly more). Each principal $p$ has a
+capability set $\kappa(p) \subseteq \mathsf{Capability}$.
+
+\subsection{Delegation chains}
+
+A \emph{delegation chain} is a finite sequence
+\begin{equation*}
+D = \langle \kappa_0, \sigma_0, \kappa_1, \sigma_1, \ldots, \kappa_n, \sigma_n \rangle
+\end{equation*}
+where each $\kappa_i$ is a capability set, each $\sigma_i$ is a signature by
+the holder of $\kappa_{i-1}$ attesting to $\kappa_i$, and the attenuation
+condition holds:
+\begin{equation*}
+\kappa_n \sqsubseteq \kappa_{n-1} \sqsubseteq \cdots \sqsubseteq \kappa_0.
+\end{equation*}
+The root capability set $\kappa_0$ is granted by a designated root principal.
+Let $\mathsf{Reach}(D)$ be the set of actions producible under $D$ without
+violating attenuation.
+
+\paragraph{Prior art.} The delegation-chain model is standard. Lampson, Abadi,
+Burrows, and Wobber~\cite{lampson1992authentication} introduce the
+\emph{speaks-for} relation and the handoff axiom in \S3.2 and \S3.3
+respectively. SPKI RFC~2693~\cite{rfc2693spki} formalizes certificate-chain
+reduction in \S6.3. SentinelAgent~\cite{sentinelagent2026} provides a modern
+delegation chain calculus with TLA+ verification. The definition above restates
+the standard model; it does not introduce new primitives.
+
+\subsection{Sequence policies}
+
+A \emph{sequence context} is a pair $S = \langle \Sigma, \varphi \rangle$
+where $\Sigma$ is a finite \emph{action alphabet} and $\varphi : \Sigma^* \to
+\{\top, \bot\}$ is a decidable predicate on finite action histories. We write
+$h \models \varphi$ for $\varphi(h) = \top$.
+
+We assume $\varphi$ is \emph{prefix-closed}: $h \models \varphi$ implies
+$\mathrm{prefix}(h, i) \models \varphi$ for all $i \le |h|$. Prefix-closure
+characterizes the safety policies in the sense of
+Alpern and Schneider~\cite{alpern1985defining}. Liveness policies are outside
+the scope of this paper.
+
+Let $\mathsf{Reach}(S)$ be the set of histories $h \in \Sigma^*$ with $h
+\models \varphi$.
+
+\paragraph{Prior art.} Runtime enforcement of safety policies is
+Schneider's~\cite{schneider2000enforceable}. The specific formalism of
+sequence policies over agent actions is from Bounded
+Agents~\cite{boundedagents2026} (the Agentic Principal Chain). The definition
+above restates the standard model.
+
+\subsection{Trust domains and federation}
+
+A \emph{trust domain} is a named region of policy and trust authority, written
+$T$ or $T_i$. Let $\mathsf{Domain}$ be the set of all domains. A
+\emph{federation graph} is a tuple
+\begin{equation*}
+F = \langle \mathcal{T}, \mathcal{A}, \delta \rangle
+\end{equation*}
+where:
+\begin{itemize}
+  \item $\mathcal{T} \subseteq \mathsf{Domain}$ is a finite set of domains;
+  \item $\mathcal{A} \subseteq \mathcal{T} \times \mathcal{T}$ is the
+  \emph{attestation relation}, with $\mathcal{A}(T_i, T_j)$ meaning ``$T_i$
+  attests the claims of $T_j$'';
+  \item $\delta \in \mathbb{N}$ is the \emph{revocation propagation bound}.
+\end{itemize}
+
+Let $\mathsf{Reach}(F, T)$ be the set of domains reachable from $T$ via
+$\mathcal{A}$, including $T$ itself. We define $\mathsf{Reach}$ as the
+transitive closure of $\mathcal{A}$ together with the reflexive base case:
+\begin{equation*}
+\mathsf{Reach}(F, T) \;=\; \{T\} \;\cup\; \{T' : \mathcal{A}(T, T')\}
+\;\cup\; \{T'' : \exists T'. \mathcal{A}(T, T') \wedge \mathcal{A}(T', T'')\}
+\;\cup\; \cdots
+\end{equation*}
+
+The revocation propagation bound $\delta$ is discussed in
+\S\ref{sec:conditions}.
+
+\paragraph{Prior art.} Cross-domain trust is discussed in Wang's federated
+governance testbed~\cite{wang2026federated} and COA-MAS
+v2~\cite{coamas2026}. Attestation transitivity is from Lampson et
+al.~\cite{lampson1992authentication} \S3.2 and SPKI RFC~2693~\cite{rfc2693spki}
+\S6.3. The definition above restates the standard model.
+
+\subsection{Composition states}
+
+A \emph{composition state} is a tuple
+\begin{equation*}
+s = \langle d, h, T, r, t \rangle
+\end{equation*}
+where:
+\begin{itemize}
+  \item $d \in \mathsf{Reach}(D)$ is the current position in a delegation chain;
+  \item $h \in \Sigma^*$ is the current action history;
+  \item $T \in \mathcal{T}$ is the current trust domain;
+  \item $r : \mathsf{Principal} \to \mathbb{N} \cup \{\infty\}$ maps each
+  principal to its revocation time (or $\infty$ if never revoked);
+  \item $t \in \mathbb{N}$ is the current logical time.
+\end{itemize}
+
+Write $\mathsf{States}(D, S, F)$ for the set of all composition states.
+
+\subsection{The transition relation}
+
+The transition relation $\to$ on composition states is given by three rules.
+
+\paragraph{Action transition.} A principal $p$ performs an action $a \in
+\Sigma$ in domain $T$:
+\begin{equation*}
+\langle d, h, T, r, t \rangle \;\to\; \langle d, h \frown \langle \langle p, a, t \rangle \rangle, T, r, t + 1 \rangle
+\end{equation*}
+subject to five guards:
+\begin{align*}
+\text{G1 (Reachability):} & \quad T \in \mathsf{Reach}(F, \mathsf{RootDomain}(p)) \\
+\text{G2 (Authorization):} & \quad a \in \kappa(p) \;\wedge\; t < r[p] \\
+\text{G3 (Sequence):} & \quad h \frown \langle a \rangle \models \varphi \\
+\text{G4 (Length):} & \quad |h| < \mathit{MaxHistory} \\
+\text{G5 (Boundary):} & \quad \mathsf{DomainPolicy}(T, a) = \top
+\end{align*}
+
+\paragraph{Revocation transition.} A principal $p$ is revoked at time $t$:
+\begin{equation*}
+\langle d, h, T, r, t \rangle \;\to\; \langle d, h, T, r[p \mapsto t], t + 1 \rangle
+\end{equation*}
+subject to $r[p] = \infty$ (not already revoked).
+
+\paragraph{Domain transition.} A principal $p$ moves to a domain $T' \in
+\mathcal{T}$:
+\begin{equation*}
+\langle d, h, T, r, t \rangle \;\to\; \langle d, h, T', r, t + 1 \rangle
+\end{equation*}
+subject to $T' \in \mathsf{Reach}(F, \mathsf{RootDomain}(p))$.
+
+The TLA+ model in \texttt{tla/Composition.tla} implements these rules as
+\texttt{DoAction}, \texttt{Revoke}, and \texttt{CrossDomain} respectively.
+
+\subsection{The composition operator $\otimes$}
+
+\begin{definition}[Composition]
+The composition $D \otimes S \otimes F$ is the labelled transition system
+$\langle \mathsf{States}, \to, s_0 \rangle$ where:
+\begin{itemize}
+  \item $\mathsf{States} = \mathsf{Reach}(D) \times \Sigma^* \times \mathcal{T}$
+  (with the revocation map and time implicit in the execution);
+  \item $\to$ is the transition relation from \S\ref{sec:model};
+  \item $s_0 = \langle d_0, \varepsilon, T_0, r_0, 0 \rangle$ is the initial
+  state, with $r_0[p] = \infty$ for all $p$.
+\end{itemize}
+The \emph{reachable set} $\mathsf{Reach}(D \otimes S \otimes F)$ is the
+transitive closure of $\to$ from $s_0$.
+\end{definition}
+
+The operator $\otimes$ is binary and associative by construction:
+$(D \otimes S) \otimes F = D \otimes (S \otimes F)$. It is \emph{not
+commutative} in general: $D \otimes S \neq S \otimes D$, because the sequence
+policy constrains actions, and actions are only produced under delegation.
+This order-sensitivity mirrors the Composition Safety principle of
+AgentRFC~\cite{agentrfc2026}.
+
+\subsection{Safety invariants}
+
+We state five invariants on composition states. Write $h[i] = \langle p_i,
+a_i, t_i \rangle$ for the $i$-th entry of the history.
+
+\begin{definition}[CI1--CI5]
+For a state $s = \langle d, h, T, r, t \rangle$:
+\begin{align*}
+\mathsf{CI1}(s) &\;=\; \forall i \in 1..|h|.\; \exists p \in \mathsf{Principal}.\; h[i].\mathit{action} \in \kappa(p) \\
+\mathsf{CI2}(s) &\;=\; h \models \varphi \\
+\mathsf{CI3}(s) &\;=\; \forall i \in 1..|h|.\; h[i].\mathit{time} < r[h[i].\mathit{principal}] \\
+\mathsf{CI4}(s) &\;=\; T \in \mathsf{Reach}(F, \mathsf{RootDomain}(\mathit{currentPrincipal})) \\
+\mathsf{CI5}(s) &\;=\; \forall T \in \mathcal{T}, a \in \Sigma.\;
+                  \mathsf{DomainPolicy}(T, a) = \top \vee \mathsf{DomainPolicy}(T, a) = \bot
+\end{align*}
+\end{definition}
+
+Informally:
+\begin{itemize}
+  \item \textbf{CI1 (Authority containment)}: every action in history is
+  authorized by some principal's capability set.
+  \item \textbf{CI2 (Sequence soundness)}: the action history satisfies the
+  sequence policy.
+  \item \textbf{CI3 (Revocation freshness)}: no action follows its actor's
+  revocation.
+  \item \textbf{CI4 (Attestation soundness)}: the current principal acts only
+  in domains reachable from its root domain.
+  \item \textbf{CI5 (Boundary determinism)}: the applicable domain policy is
+  defined at every state.
+\end{itemize}
+
+%------------------------------------------------- Conditions and theorem --
+\section{Compatibility conditions and the preservation theorem}
+\label{sec:conditions}
+
+Three compatibility conditions, taken jointly, ensure the preservation of the
+five invariants. Each condition is stated below, followed by its lineage to
+prior work.
+
+\subsection{The conditions}
+
+\begin{definition}[Policy Compatibility, PC]
+\label{def:pc}
+The composition $D \otimes S \otimes F$ satisfies \emph{Policy Compatibility}
+if every action producible under any chain in $D$ is classified by the
+sequence policy's alphabet:
+\begin{equation*}
+\mathsf{PC}(D, S) \;=\; \forall d \in \mathsf{Reach}(D).\; \mathsf{Actions}(d) \subseteq \Sigma.
+\end{equation*}
+\end{definition}
+
+PC ensures that the sequence policy sees every action that can occur. Without
+it, an action outside $\Sigma$ escapes the sequence constraint entirely.
+
+\begin{definition}[Revocation Synchronization, RS]
+\label{def:rs}
+The composition satisfies \emph{Revocation Synchronization} with bound
+$\delta$ if revocation in one domain is effective in every domain reachable by
+an attestation path, within $\delta$ time units:
+\begin{equation*}
+\mathsf{RS}(F, \delta) \;=\; \forall T_i, T_j \in \mathcal{T}.\;
+\mathsf{path}(\mathcal{A}, T_i, T_j) \;\Rightarrow\;
+\mathsf{revoke}(T_i, t) \;\Rightarrow\; \mathsf{effective}(T_j, t + \delta).
+\end{equation*}
+\end{definition}
+
+RS ensures that a revoked principal cannot continue to act in a domain that
+has not yet seen the revocation. Without it, the propagation window admits a
+race.
+
+\begin{definition}[Cross-Boundary Attestation Transitivity, CBAT]
+\label{def:cbat}
+The composition satisfies \emph{Cross-Boundary Attestation Transitivity} if
+attestation is transitive across domains unless explicitly bounded:
+\begin{equation*}
+\mathsf{CBAT}(F) \;=\; \forall T_i, T_j, T_k \in \mathcal{T}.\;
+\mathcal{A}(T_i, T_j) \wedge \mathcal{A}(T_j, T_k) \;\Rightarrow\;
+\mathcal{A}(T_i, T_k) \vee \mathsf{explicitly\_bounded}(T_i, T_k).
+\end{equation*}
+\end{definition}
+
+CBAT ensures that reachability is closed under composition of attestations.
+Without it, an agent can act in a domain reachable only through an
+intermediate domain whose attestation was not transitively closed---an
+attestation laundering attack.
+
+\subsection{Lineage of the conditions}
+\label{sec:lineage}
+
+None of the three conditions is novel in isolation. \Cref{tab:lineage} states,
+for each condition, the prior work it restates and the aspect (if any) that
+extends or refines that prior work.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{@{}p{0.7cm}p{6.4cm}p{5.8cm}@{}}
+\toprule
+\textbf{Cond.} & \textbf{Restates} & \textbf{Where} \\
+\midrule
+PC & Scope/budget tracking across action sequences; runtime enforcement of safety policies & Bounded Agents~\cite{boundedagents2026}; Schneider~\cite{schneider2000enforceable} \\
+RS & Validity intervals on certificates; the question ``how long are you willing to let the world believe and act on a statement you know to be false?'' & SPKI RFC~2693~\cite{rfc2693spki}, \S5.4 \\
+CBAT & Speaks-for transitivity: ``it is also easy to show that $\vdash$ is monotonic in both arguments and that $\Rightarrow$ is transitive'' & Lampson et al.~\cite{lampson1992authentication}, \S3.2 \\
+CBAT (bounding) & ``the general axiom is too powerful\ldots if the conclusion uses a qualified form of $\Rightarrow$ it may be more acceptable''; closest formal analog is RT's linked roles & Lampson et al.~\cite{lampson1992authentication}, \S3.3 (note on P10); Li, Mitchell, Winsborough~\cite{rt2002} \\
+\bottomrule
+\end{tabular}
+\caption{Prior-art lineage of the three compatibility conditions. Each condition
+restates prior work; the contribution is the joint treatment.}
+\label{tab:lineage}
+\end{table}
+
+\subsection{The preservation theorem}
+
+\begin{theorem}[Composition Preservation]
+\label{thm:preservation}
+If $\mathsf{PC}(D, S) \wedge \mathsf{RS}(F, \delta) \wedge \mathsf{CBAT}(F)$
+hold, then for every state $s \in \mathsf{Reach}(D \otimes S \otimes F)$ and
+every $k \in \{1, \ldots, 5\}$:
+\begin{equation*}
+\mathsf{CI}k(s).
+\end{equation*}
+\end{theorem}
+
+The contrapositive gives a concrete attack surface per condition:
+
+\begin{theorem}[Emergent Authority, contrapositive]
+\label{thm:emergent}
+If $\neg\mathsf{PC} \vee \neg\mathsf{RS} \vee \neg\mathsf{CBAT}$, there exists
+a trajectory $\tau$ in $\mathsf{Reach}(D \otimes S \otimes F)$ that violates
+at least one of $\mathsf{CI1}, \ldots, \mathsf{CI5}$.
+\end{theorem}
+
+\Cref{thm:emergent} is the red-teamer's reading of the theorem: every failure
+of a compatibility condition yields a concrete attack. \Cref{sec:independence}
+demonstrates this for each condition by a runnable counterexample.
+
+%------------------------------------------------------------------- Proof --
+\section{Proof of the preservation theorem}
+\label{sec:proof}
+
+The proof is by structural induction over the transition relation. The base
+case establishes all five invariants at the initial state. The inductive step
+shows that each of the three transition rules preserves all five invariants.
+The full proof is given in \Cref{app:proof}; here we give the induction
+outline and state where each compatibility condition is used.
+
+\subsection{Proof outline}
+
+\begin{proof}[Proof of \Cref{thm:preservation}, by structural induction]
+\emph{Base case.} Let $s_0 = \langle d_0, \varepsilon, T_0, r_0, 0 \rangle$.
+Since $h = \varepsilon$, the quantifiers in CI1, CI2, and CI3 are vacuous.
+CI4 holds because $T_0 \in \mathsf{Reach}(F, T_0) =
+\mathsf{Reach}(F, \mathsf{RootDomain}(p_0))$ by the reflexive base case of
+$\mathsf{Reach}$. CI5 holds because $\mathsf{DomainPolicy}$ is total by
+definition.
+
+\emph{Inductive step.} Assume $\mathsf{CI1}(s) \wedge \cdots \wedge
+\mathsf{CI5}(s)$ for some $s \in \mathsf{Reach}(D \otimes S \otimes F)$. Let
+$s \to s'$. We consider the three transition rules in turn.
+
+\emph{T-Action:} $s' = \langle d, h \frown \langle \langle p, a, t \rangle
+\rangle, T, r, t + 1 \rangle$.
+\begin{itemize}
+\item CI1 follows from $\mathsf{CI1}(s)$ for old history entries and from
+guard G2 for the new entry.
+\item CI2 follows directly from guard G3.
+\item CI3 follows from $\mathsf{CI3}(s)$ for old entries and from guard G2
+($t < r[p]$) for the new entry. \textbf{RS is used here}: the value $r[p]$
+must be consistent across domains, which is exactly what RS guarantees.
+\item CI4 follows from guard G1. \textbf{CBAT is used here}: the reachability
+relation $\mathsf{Reach}$ is defined as the transitive closure of
+$\mathcal{A}$, and CBAT is what makes the transitive closure well-defined
+across domains.
+\item CI5 follows from $\mathsf{CI5}(s)$ and from guard G5. \textbf{PC is
+used here}: PC ensures the new action is in $\Sigma$, so the domain policy
+classification applies.
+\end{itemize}
+
+\emph{T-Revoke:} $s' = \langle d, h, T, r[p \mapsto t], t + 1 \rangle$. The
+history, current principal, and current domain are unchanged. Only
+$r$ changes, and only at $p$. The invariants CI1, CI2, CI4, CI5 are
+immediate. For CI3: for $i$ with $h[i].\mathit{principal} \neq p$, the
+inequality is preserved; for $i$ with $h[i].\mathit{principal} = p$, we have
+$h[i].\mathit{time} < t$ because no action in $h$ is recorded at the current
+time (actions increment $t$), so the inequality holds.
+
+\emph{T-Cross:} $s' = \langle p, h, T', r, t + 1 \rangle$. The history is
+unchanged. CI1, CI2, CI3 are preserved. CI4 follows from the transition
+guard $T' \in \mathsf{Reach}(F, \mathsf{RootDomain}(p))$; \textbf{CBAT is
+used here} for the same reason as in T-Action. CI5 is unchanged.
+\end{proof}
+
+\subsection{Where each condition is used}
+
+\Cref{tab:conditions-use} summarizes the use of each compatibility condition
+in the proof.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{@{}p{1.2cm}p{5.5cm}p{7cm}@{}}
+\toprule
+\textbf{Cond.} & \textbf{Used in} & \textbf{Why} \\
+\midrule
+PC & CI2, CI5 preservation under T-Action & Ensures the new action is in $\Sigma$, so the sequence policy and domain policy classify it \\
+RS & CI3 preservation under T-Action & Ensures revocation time $r[p]$ is consistent across domains, so the guard $t < r[p]$ is sound \\
+CBAT & CI4 preservation under T-Action and T-Cross & Ensures $\mathsf{Reach}(F, T)$ is the transitive closure of $\mathcal{A}$, so the guard $T \in \mathsf{Reach}$ is well-defined \\
+\bottomrule
+\end{tabular}
+\caption{Dependence of the proof on each compatibility condition.}
+\label{tab:conditions-use}
+\end{table}
+
+The use is disjoint: each condition is used in a distinct part of the
+preservation argument. This is what makes the conditions non-redundant, as
+\Cref{sec:independence} demonstrates by counterexample.
+
+%------------------------------------------------------ Mechanized verification --
+\section{Mechanized verification}
+\label{sec:verification}
+
+The theorem is verified in TLA+ for a bounded instance. The verification is
+not a proof of the general theorem---the proof in \S\ref{sec:proof} carries
+that---but it catches specification bugs and confirms that the model is
+coherent on a concrete configuration.
+
+\subsection{The verified instance}
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Parameter} & \textbf{Value} \\
+\midrule
+Principals & 6 ($R_1, PA, PB, R_2, PC, PD$) \\
+Delegation chains & 2 (chain $D_1$ rooted in $T_1$; chain $D_2$ rooted in $T_2$) \\
+Trust domains & 3 ($T_1, T_2, T_3$) \\
+Capabilities & $\{\mathit{read}, \mathit{write}, \mathit{send}\}$ \\
+Sequence policy & No two consecutive \texttt{send} actions \\
+Attestation relation & $T_1 \to T_2$, $T_2 \to T_3$ \\
+State constraint & $\mathit{time} \le 4$, $\mathit{Len}(\mathit{history}) \le 3$ \\
+Invariants checked & CI1, CI2, CI3, CI4, CI5 \\
+\bottomrule
+\end{tabular}
+\caption{The verified instance.}
+\label{tab:instance}
+\end{table}
+
+The instance is deliberately minimal: it is small enough that TLC exhausts the
+reachable state space in seconds, and rich enough that each invariant is
+non-trivial. The sequence policy exercises two-chain interleaving. The
+attestation relation exercises transitivity from $T_1$ to $T_3$ via $T_2$. The
+action-level revocation tracking exercises CI3.
+
+\subsection{Verification result}
+
+TLC 2.19 exhausts the reachable state space with the following result:
+
+\begin{verbatim}
+Model checking completed. No error has been found.
+11185890 states generated, 300447 distinct states found,
+    0 states left on queue.
+The depth of the complete state graph search is 5.
+Finished in 33s.
+\end{verbatim}
+
+Zero violations of CI1--CI5 across all 300{,}447 distinct states. The
+fingerprint collision probability reported by TLC is $1.0 \times 10^{-9}$
+(based on actual fingerprints), so the exhaustive search is sound.
+
+\subsection{What the verification does and does not show}
+
+The verification establishes:
+\begin{itemize}
+  \item The five invariants are consistent with the transition relation on the
+  stated instance.
+  \item TLC's exhaustive search terminates with zero violations, so the
+  theorem holds on this instance with high confidence.
+\end{itemize}
+
+The verification does \emph{not} establish:
+\begin{itemize}
+  \item The theorem for unbounded executions. The state constraint bounds
+  $\mathit{time} \le 4$ and $\mathit{Len}(\mathit{history}) \le 3$.
+  \item The theorem for larger instances. Scaling has been attempted but the
+  state space grows beyond what TLC can handle; see
+  \S\ref{sec:limitations}.
+  \item The theorem in a proof assistant. The proof is by hand.
+\end{itemize}
+
+The verification complements the proof: the proof is general but by hand, the
+verification is bounded but mechanical. Neither alone is sufficient.
+
+%----------------------------------------------------------- Independence --
+\section{Independence of the conditions}
+\label{sec:independence}
+
+The three conditions are individually non-redundant. Dropping any one while
+keeping the other two admits a reachable state that violates a named
+invariant. This is the independence of the hypothesis: no condition can be
+removed without loss.
+
+\paragraph{Method.} For each condition, the artifact's attack harness
+constructs a composition state that (a) satisfies the other two conditions and
+(b) violates the invariant tied to the dropped condition. The attack is
+implemented as a guard-level weakening of the TLA+ model, followed by TLC.
+The TLC trace is the witness.
+
+\subsection{PC non-redundancy}
+
+Dropping PC: weaken the sequence policy so it only examines the acting
+principal's local chain history, not the global history. Two chains, each
+individually compliant, can then produce a forbidden sequence.
+
+\begin{verbatim}
+$ python3 redteam/pc/alphabet_escape.py
+[PC] ATTACK SUCCEEDED - CI2 violated
+[OK] PC: alphabet escape
+\end{verbatim}
+
+The TLC trace shows a history ending in two consecutive \texttt{send} actions.
+CI2 is violated.
+
+\subsection{RS non-redundancy}
+
+Dropping RS: remove the guard-level revocation check. A revoked principal can
+then continue to act in a domain that has not yet received the revocation.
+
+\begin{verbatim}
+$ python3 redteam/rs/revocation_race.py
+[RS] ATTACK SUCCEEDED - CI3 violated
+[OK] RS: revocation race
+\end{verbatim}
+
+The TLC trace shows a history entry with $h[i].\mathit{time} \ge
+r[h[i].\mathit{principal}]$. CI3 is violated.
+
+This attack also serves as a \emph{mutation test} of CI3: it demonstrates that
+CI3 is not vacuously satisfied. Removing the guard that enforces CI3 produces
+a violation, so CI3 is genuinely load-bearing.
+
+\subsection{CBAT non-redundancy}
+
+Dropping CBAT: weaken the reachability check to allow any principal to reach
+any domain, regardless of attestation. A principal from a chain rooted in
+$T_2$ can then act in $T_1$, which $T_2$ does not attest.
+
+\begin{verbatim}
+$ python3 redteam/cbat/attestation_laundering.py
+[CBAT] ATTACK SUCCEEDED - CI4 violated
+[OK] CBAT: attestation laundering
+\end{verbatim}
+
+The TLC trace shows a state where the current principal's root domain does
+not reach the current domain. CI4 is violated.
+
+\subsection{Summary}
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{@{}llll@{}}
+\toprule
+\textbf{Attack} & \textbf{Condition dropped} & \textbf{Invariant violated} & \textbf{Result} \\
+\midrule
+\texttt{pc/alphabet\_escape.py} & PC & CI2 (Sequence Soundness) & succeeds \\
+\texttt{rs/revocation\_race.py} & RS & CI3 (Revocation Freshness) & succeeds \\
+\texttt{cbat/attestation\_laundering.py} & CBAT & CI4 (Attestation Soundness) & succeeds \\
+\bottomrule
+\end{tabular}
+\caption{Independence of the three conditions. Each attack succeeds, so no
+condition can be dropped.}
+\label{tab:independence}
+\end{table}
+
+This is an \emph{independence} result, not a \emph{necessity} result. It shows
+the conditions are non-redundant in this construction. It does not show that
+no weaker condition set would suffice, and we do not claim that.
+
+%------------------------------------------------------------ Related work --
+\section{Related work}
+\label{sec:related}
+
+\subsection{Delegation and access control}
+
+The speaks-for relation and its transitivity are from Lampson, Abadi, Burrows,
+and Wobber~\cite{lampson1992authentication}, \S3.2. The same paper introduces
+the handoff axiom (P10) in \S3.3 and notes that the general form is ``too
+powerful'' for some settings, suggesting a qualified variant---this is the
+mechanism our CBAT condition restates. Abadi, Burrows, Lampson, and
+Plotkin~\cite{ablp1993calculus} formalize the relation into a calculus for
+access control in distributed systems.
+
+SPKI/SDSI~\cite{rfc2693spki} provides a certificate-chain theory for
+authorization, with 5-tuple reduction in \S6.3 and validity intervals in
+\S5.4. RT (Li, Mitchell, and Winsborough~\cite{rt2002}) introduces linked roles
+as a mechanism for bounding transitivity across domains---the closest formal
+analog to CBAT's ``explicitly bounded'' clause.
+
+More recently, SentinelAgent~\cite{sentinelagent2026} provides a delegation
+chain calculus for AI agents with TLA+ verification. Our delegation layer
+restates the standard model; the composition with sequence policies and
+federation is the point of departure.
+
+\subsection{Sequence policies and runtime enforcement}
+
+Runtime enforcement of security policies is
+Schneider~\cite{schneider2000enforceable}, and the safety/liveness dichotomy
+is Alpern and Schneider~\cite{alpern1985defining}. Ligatti, Bauer, and
+Walker~\cite{ligatti2005edit} extend enforcement to edit automata, which can
+modify actions rather than only block them. Our sequence policies are
+safety-only and prefix-closed, so Schneider's framework suffices.
+
+The specific application of sequence policies to agent actions is from
+Bounded Agents~\cite{boundedagents2026} (the Agentic Principal Chain). PCAS
+provides a Datalog-derived policy compiler for secure agentic
+systems~\cite{pacs2026}. Our PC condition is a specific constraint on the
+alphabet of the sequence policy; it is not a full policy language.
+
+\subsection{Federation and cross-domain trust}
+
+Federated governance without a trusted center is discussed in Wang's testbed
+work~\cite{wang2026federated}, which addresses multi-principal agents that do
+not share a central controller. COA-MAS v2~\cite{coamas2026} is a
+meta-framework for cross-domain governance, explicitly rejecting a single
+federated architecture for all contexts. Our federation graph is a
+specific instance of the general problem these works address; we do not
+claim to solve the general cross-domain governance problem.
+
+\subsection{Composition of security properties}
+
+The compositionality of safety properties is McLean~\cite{mclean1994general}.
+Universally composable security is Canetti~\cite{canetti2001uc}. The
+composition of cryptographic protocols is addressed by Abadi and
+Gordon~\cite{abadi1997spi}.
+
+Two recent results make the negative side of our problem concrete.
+Spera~\cite{spera2026noncompositionality} proves a non-compositionality
+theorem: two individually safe agents can jointly reach a forbidden goal
+through an emergent conjunctive dependency. AgentRFC~\cite{agentrfc2026}
+documents 20 cross-protocol violations across five composition patterns.
+
+SynectivSec is the positive counterpart: given three specific compatibility
+conditions, composition preserves the invariants. Where Spera and AgentRFC
+establish the negative case, we characterize a positive case.
+
+\subsection{Agent-specific security frameworks}
+
+OAP (Open Agent Passport)~\cite{oap2026} is an open specification for
+pre-action authorization of AI tool calls. PCAS~\cite{pacs2026} provides
+deterministic policy enforcement for secure agentic systems.
+AgentGuardian~\cite{agentguardian2026} learns context-aware access-control
+policies from execution traces. These systems operate at the per-action
+level; SynectivSec composes above them and does not replace them.
+
+\subsection{Summary}
+
+The individual primitives---delegation chains, sequence policies, federated
+attestation---have been studied extensively. What has not been stated is the
+\emph{composition} of all three under a preservation theorem. That is the
+contribution of this paper.
+
+%------------------------------------------------------------ Limitations --
+\section{Limitations and threats to validity}
+\label{sec:limitations}
+
+\subsection*{Scope of the proof}
+
+The proof of \Cref{thm:preservation} is by hand. It is not mechanized in a
+proof assistant (Lean, Coq, Isabelle, TLAPS). A mechanized proof would
+strengthen the claim and is future work.
+
+The proof assumes sequential transitions. A concurrent model with interleaved
+transitions would require a refinement argument not given here.
+
+\subsection*{Scope of the verification}
+
+The TLA+ verification is on a bounded instance: $\mathit{time} \le 4$,
+$\mathit{Len}(\mathit{history}) \le 3$, 6 principals, 2 chains, 3 domains.
+Attempts to scale to larger instances (12 principals, or 6 principals with 4
+domains and 4 capabilities) exceeded 5 minutes of runtime due to state-space
+explosion. Scaling remains open and would require symmetry reduction, larger
+compute, or symbolic model checking (e.g., Apalache).
+
+\subsection*{CI5 non-triviality}
+
+In the current model, $\mathsf{DomainPolicy}$ is a total function, so CI5 is
+trivially true. A model with layered or uncertain policies would make CI5
+non-trivial. Extending the model to such policies is future work.
+
+\subsection*{Dynamic federation}
+
+The attestation relation $\mathcal{A}$ is a compile-time constant. Domains
+joining or leaving the federation during a composition would require a
+temporal extension of the theorem.
+
+\subsection*{Independence vs. necessity}
+
+The attack harness establishes independence: each condition is non-redundant
+in this construction. It does not establish necessity in the strong sense
+(that no weaker set of conditions suffices). We do not claim the stronger
+result.
+
+\subsection*{Prior-art verification}
+
+CBAT is verified against Lampson et al.~\cite{lampson1992authentication}
+\S3.2 and \S3.3 from the primary source. RS is verified against SPKI
+RFC~2693~\cite{rfc2693spki} \S5.4 from the primary source. PC's lineage to
+Bounded Agents~\cite{boundedagents2026} and Schneider~\cite{schneider2000enforceable}
+is verified from secondary sources; a primary-source check is future work.
+The claim that the \emph{joint} formulation of RS is novel has not been
+verified by systematic search of the 1990s--2010s trust-management literature.
+
+\subsection*{No reference implementation}
+
+There is no compiled, deployable software. The TLA+ model and the attack
+harness are research artifacts. A reference implementation and integration
+with agent frameworks (MCP, A2A) is future work.
+
+\subsection*{Non-goals}
+
+SynectivSec addresses action-level and sequence-level constraints. It does not
+address content-level attacks (prompt injection, output manipulation),
+availability, key compromise, or alignment. These are outside the scope of the
+theorem and are handled by other layers of the stack.
+
+%------------------------------------------------------------- Conclusion --
+\section{Conclusion}
+\label{sec:conclusion}
+
+We have presented a composition theorem for the joint treatment of delegation
+chains, sequence policies, and cross-domain federation. The theorem states
+three compatibility conditions (PC, RS, CBAT) that are sufficient for the
+composition to preserve five safety invariants (CI1--CI5). We prove the
+theorem by structural induction over the transition relation, verify it in
+TLA+ on a bounded instance with zero violations across 300{,}447 distinct
+states, and demonstrate that each condition is non-redundant by a runnable
+counterexample.
+
+The individual conditions are not novel. The composition is. The contribution
+is the joint treatment, the preservation theorem, and the independence result.
+
+The artifact is released at
+\url{https://github.com/kakashi-kx/synectivsec} under Apache~2.0 (code) and
+CC-BY~4.0 (documentation). Contributions---especially counterexamples to the
+theorem---are welcome.
+
+%---------------------------------------------------------- Bibliography --
+\begin{thebibliography}{99}
+
+\bibitem{lampson1992authentication}
+B.~Lampson, M.~Abadi, M.~Burrows, and E.~Wobber.
+\newblock Authentication in distributed systems: Theory and practice.
+\newblock \emph{ACM Transactions on Computer Systems}, 10(4):265--310, 1992.
+
+\bibitem{ablp1993calculus}
+M.~Abadi, M.~Burrows, B.~Lampson, and G.~Plotkin.
+\newblock A calculus for access control in distributed systems.
+\newblock \emph{ACM Transactions on Programming Languages and Systems},
+15(4):706--734, 1993.
+
+\bibitem{rfc2693spki}
+C.~Ellison, B.~Frantz, B.~Lampson, R.~Rivest, B.~Thomas, and T.~Ylonen.
+\newblock SPKI certificate theory.
+\newblock RFC 2693, Internet Engineering Task Force, September 1999.
+
+\bibitem{rt2002}
+N.~Li, J.~C.~Mitchell, and W.~H.~Winsborough.
+\newblock Design of a role-based trust-management framework.
+\newblock In \emph{Proc. IEEE Symposium on Security and Privacy}, 2002.
+
+\bibitem{schneider2000enforceable}
+F.~B.~Schneider.
+\newblock Enforceable security policies.
+\newblock \emph{ACM Transactions on Information and System Security},
+3(1):30--50, 2000.
+
+\bibitem{alpern1985defining}
+B.~Alpern and F.~B.~Schneider.
+\newblock Defining liveness.
+\newblock \emph{Information Processing Letters}, 21(4):181--185, 1985.
+
+\bibitem{ligatti2005edit}
+J.~Ligatti, L.~Bauer, and D.~Walker.
+\newblock Edit automata: Enforcement mechanisms for run-time security
+policies.
+\newblock \emph{International Journal of Information Security},
+4(1--2):2--16, 2005.
+
+\bibitem{mclean1994general}
+J.~McLean.
+\newblock A general theory of composition for trace sets closed under
+selective interleaving functions.
+\newblock In \emph{Proc. IEEE Symposium on Security and Privacy}, 1994.
+
+\bibitem{canetti2001uc}
+R.~Canetti.
+\newblock Universally composable security: A new paradigm for cryptographic
+protocols.
+\newblock In \emph{Proc. IEEE Symposium on Foundations of Computer Science},
+2001.
+
+\bibitem{abadi1997spi}
+M.~Abadi and A.~D.~Gordon.
+\newblock A calculus for cryptographic protocols: The spi calculus.
+\newblock In \emph{Proc. ACM Conference on Computer and Communications
+Security}, 1997.
+
+\bibitem{sentinelagent2026}
+Anonymous.
+\newblock SentinelAgent: A delegation chain calculus for AI agents.
+\newblock arXiv:2604.02767, 2026.
+
+\bibitem{boundedagents2026}
+Anonymous.
+\newblock Bounded agents: The agentic principal chain.
+\newblock arXiv:2608.15888, 2026.
+
+\bibitem{spera2026noncompositionality}
+A.~Spera.
+\newblock Non-compositionality of safety for AI agents.
+\newblock arXiv:2603.15973, 2026.
+
+\bibitem{agentrfc2026}
+Anonymous.
+\newblock AgentRFC: Composition safety for agent protocols.
+\newblock arXiv:2603.23801, 2026.
+
+\bibitem{oap2026}
+U.~Uchibeke.
+\newblock Open Agent Passport: Pre-action authorization for AI tool calls.
+\newblock arXiv:2603.20953, 2026.
+
+\bibitem{pacs2026}
+N.~Palumbo, S.~Choudhary, J.~Choi, P.~Chalasani, and S.~Jha.
+\newblock Policy compiler for secure agentic systems.
+\newblock arXiv:2602.16708, 2026.
+
+\bibitem{agentguardian2026}
+N.~Abaev et al.
+\newblock AgentGuardian: Learning access control policies to govern AI agent
+behavior.
+\newblock arXiv:2601.10440, 2026.
+
+\bibitem{wang2026federated}
+K.~Wang.
+\newblock A federated governance testbed for multi-principal agents.
+\newblock 2026.
+
+\bibitem{coamas2026}
+Anonymous.
+\newblock COA-MAS v2: A meta-framework for cross-domain agent governance.
+\newblock 2026.
+
+\end{thebibliography}
+
+%------------------------------------------------------------ Appendices --
+\appendix
+
+\section{Full proof of the preservation theorem}
+\label{app:proof}
+
+We give the full structural induction. The notation follows \S\ref{sec:model}.
+
+\subsection{Base case}
+
+Let $s_0 = \langle d_0, \varepsilon, T_0, r_0, 0 \rangle$.
+
+\textbf{CI1.} $|h| = 0$, so the universal quantifier is vacuous.
+
+\textbf{CI2.} $\varphi$ is prefix-closed, and $\varepsilon$ is a prefix of
+every history, so $\varepsilon \models \varphi$.
+
+\textbf{CI3.} $|h| = 0$, vacuous.
+
+\textbf{CI4.} $T_0 = \mathsf{RootDomain}(p_0)$ by definition of $s_0$, and
+$T_0 \in \mathsf{Reach}(F, T_0)$ by the reflexive base case.
+
+\textbf{CI5.} $\mathsf{DomainPolicy}$ is total by definition.
+
+\subsection{Inductive step: T-Action}
+
+$s \to s'$ where $s' = \langle d, h \frown \langle \langle p, a, t \rangle
+\rangle, T, r, t + 1 \rangle$, subject to G1--G5.
+
+\textbf{CI1.} For $i \le |h|$, $h'[i] = h[i]$, so $\mathsf{CI1}(s)$ applies.
+For $i = |h| + 1$, $h'[i].\mathit{action} = a \in \kappa(p)$ by G2. So CI1
+holds.
+
+\textbf{CI2.} $h' = h \frown \langle a \rangle \models \varphi$ by G3.
+
+\textbf{CI3.} For $i \le |h|$, $h'[i].\mathit{time} = h[i].\mathit{time} <
+r[h[i].\mathit{principal}]$ by $\mathsf{CI3}(s)$ and $r' = r$. For
+$i = |h| + 1$, $h'[i].\mathit{time} = t < r[p]$ by G2, and
+$h'[i].\mathit{principal} = p$, so the inequality holds.
+
+\textbf{CI4.} $T \in \mathsf{Reach}(F, \mathsf{RootDomain}(p))$ by G1, and
+$p$ is now the current principal.
+
+\textbf{CI5.} $T$ and the historical actions are unchanged; $a \in \Sigma$ by
+PC; $\mathsf{DomainPolicy}$ is total.
+
+\subsection{Inductive step: T-Revoke}
+
+$s \to s'$ where $s' = \langle d, h, T, r[p \mapsto t], t + 1 \rangle$,
+subject to $r[p] = \infty$.
+
+\textbf{CI1, CI2, CI4, CI5.} History and current domain unchanged; immediate.
+
+\textbf{CI3.} Let $i \le |h|$. If $h[i].\mathit{principal} \neq p$, then
+$r'[h[i].\mathit{principal}] = r[h[i].\mathit{principal}]$ and $\mathsf{CI3}(s)$
+applies. If $h[i].\mathit{principal} = p$, we have $h[i].\mathit{time} < t$
+because actions are recorded at strictly earlier times than $t$, so
+$h[i].\mathit{time} < t = r'[p]$.
+
+\subsection{Inductive step: T-Cross}
+
+$s \to s'$ where $s' = \langle p, h, T', r, t + 1 \rangle$, subject to
+$T' \in \mathsf{Reach}(F, \mathsf{RootDomain}(p))$.
+
+\textbf{CI1, CI2, CI3.} History unchanged.
+
+\textbf{CI4.} $T' \in \mathsf{Reach}(F, \mathsf{RootDomain}(p))$ by the guard,
+and $p$ is now the current principal.
+
+\textbf{CI5.} Unchanged.
+
+\subsection{Conclusion}
+
+By structural induction, every reachable state $s \in \mathsf{Reach}(D \otimes
+S \otimes F)$ satisfies CI1--CI5. \qed
+
+\section{TLA+ module}
+\label{app:tla}
+
+The complete TLA+ module is in the artifact at
+\texttt{tla/Composition.tla}. We reproduce the invariant definitions and the
+transition relation here for reference.
+
+\begin{lstlisting}[language=TLA+]
+DoAction(p, a, dom) ==
+    /\ ChainRootCanReachDomain(p, dom)
+    /\ ActionPermitted(p, a, dom)
+    /\ Len(history) < MaxHistory
+    /\ SequencePolicyOK(Append(history,
+         [principal |-> p, action |-> a, at |-> time]))
+    /\ currentPrincipal' = p
+    /\ history' = Append(history,
+         [principal |-> p, action |-> a, at |-> time])
+    /\ currentDomain' = dom
+    /\ revokedAt' = revokedAt
+    /\ time' = time + 1
+
+Revoke(p) ==
+    /\ revokedAt[p] = NeverRevoked
+    /\ revokedAt' = [revokedAt EXCEPT ![p] = time]
+    /\ currentPrincipal' = currentPrincipal
+    /\ history' = history
+    /\ currentDomain' = currentDomain
+    /\ time' = time + 1
+
+CrossDomain(p, dom) ==
+    /\ ChainRootCanReachDomain(p, dom)
+    /\ currentPrincipal' = p
+    /\ history' = history
+    /\ currentDomain' = dom
+    /\ revokedAt' = revokedAt
+    /\ time' = time + 1
+\end{lstlisting}
+
+The full module includes the capability lattice, the attestation relation, the
+sequence policy, and the five invariants.
+
+\end{document}
