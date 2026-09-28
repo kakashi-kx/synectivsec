@@ -21,7 +21,7 @@ can break safety in the adjacent multi-agent capability setting.
 
 SynectivSec states and model-checks the positive composition theorem: three
 compatibility conditions, sufficient (and, per the attack harness below,
-individually necessary) for the composition to preserve five safety invariants.
+individually non-redundant) for the composition to preserve five safety invariants.
 
 ---
 
@@ -119,14 +119,14 @@ conditions but violates the invariant tied to the dropped one:
 All three attacks succeed. Run them with `./redteam/run_all.sh`. Full results
 in `redteam/RESULTS.md`.
 
-This is the tightness argument: the three conditions aren't a conservative
+This is the independence argument: the three conditions are not a conservative
 superset of what's needed, they're individually load-bearing.
 
 ---
 
 ## How to Break This
 
-The attack harness only proves the three conditions are necessary in the
+The attack harness only proves the three conditions are non-redundant in the
 constructions we wrote. It does not prove they're jointly *sufficient* beyond
 the bounded instance, and it does not prove no fourth condition is needed.
 

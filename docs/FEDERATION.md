@@ -239,7 +239,7 @@ The composition fails if CBAT is violated because:
   the acting principal's root domain reaches the current domain — and
   reachability is defined by CBAT-closed Α.
 
-**This is why CBAT is a necessary condition** — not because the condition is
+**This is why CBAT is a non-redundant condition** — not because the condition is
 deep, but because its absence breaks a composition invariant.
 
 The attack harness (`redteam/cbat/attestation_laundering.py`) demonstrates this
@@ -319,7 +319,7 @@ domain graph.
 
 **Note the honest framing:** RS is SPKI's validity-interval idea applied to a
 domain graph. If the joint formulation turns out to have prior art, the
-framing adjusts. The composition theorem's necessity of RS remains true
+framing adjusts. The composition theorem's use of RS as a non-redundant condition remains true
 regardless — the attack harness demonstrates it.
 
 ### 4.5 Revocation and the Composition

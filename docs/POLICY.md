@@ -217,7 +217,7 @@ policy is never violated.
 
 **Attacks against the sequence layer** are addressed by:
 
-- **PC necessity** — `redteam/pc/alphabet_escape.py` disables the guard-level
+- **PC non-redundancy** — `redteam/pc/alphabet_escape.py` disables the guard-level
   sequence policy, and CI2 fails.
 - **Sequence laundering** — if two chains can interleave actions to produce a
   forbidden sequence that neither chain's local policy catches, CI2 fails.
@@ -353,7 +353,7 @@ This is the condition that binds the sequence layer to the delegation layer
 and makes composition attacks possible.
 
 See `ALGEBRA.md` §5.1 for the PC formalization, and `redteam/pc/` for the
-demonstration that PC is necessary.
+demonstration that PC is non-redundant.
 
 ---
 

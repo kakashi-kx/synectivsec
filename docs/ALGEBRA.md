@@ -355,7 +355,7 @@ reachable states, which is equivalent to CI6 for the bounded instance.
 ## 5. Compatibility Conditions
 
 Three conditions on the composition operator ensure that CI1–CI6 hold. Each is
-sufficient in the theorem's hypothesis. Each is individually necessary per
+sufficient in the theorem's hypothesis. Each is individually non-redundant per
 `redteam/RESULTS.md`.
 
 ### 5.1 PC — Policy Compatibility
@@ -477,7 +477,7 @@ a trajectory `τ` in `Reach(D ⊗ S ⊗ F)` that violates at least one of CI1–
 attack. This is the red-teamer's theorem: it turns each compatibility condition
 into an attack surface.
 
-**Verification.** Each condition's necessity is demonstrated by a runnable
+**Verification.** Each condition's non-redundancy is demonstrated by a runnable
 attack in `redteam/`:
 
 - `redteam/pc/alphabet_escape.py` — breaks PC, CI2 violated
@@ -486,15 +486,15 @@ attack in `redteam/`:
 
 All three attacks succeed. See `redteam/RESULTS.md`.
 
-### 6.3 Tightness
+### 6.3 Independence of the Hypothesis
 
 **Corollary.** PC, RS, CBAT are **jointly sufficient and individually
-necessary** for the preservation of CI1–CI5 under composition.
+non-redundant** for the preservation of CI1–CI5 under composition.
 
-**Meaning.** The theorem is tight. The set of conditions cannot be reduced.
+**Meaning.** The hypothesis is independent: no condition can be dropped without admitting a counterexample. No claim is made that no weaker set of conditions would suffice.
 
-**Verification.** §6.1 establishes sufficiency. §6.2 establishes necessity.
-Together they establish tightness.
+**Verification.** §6.1 establishes sufficiency. §6.2 establishes non-redundancy.
+Together they establish independence.
 
 ---
 
@@ -521,10 +521,10 @@ TLC model-checks the following:
 
 ### 7.3 What the Attack Harness Checks
 
-- Each compatibility condition is individually necessary (via guard-level
+- Each compatibility condition is individually non-redundant (via guard-level
   weakening)
 - Each attack produces a concrete TLA+ counterexample
-- The set {PC, RS, CBAT} is tight
+- The set {PC, RS, CBAT} is independent (non-redundant)
 
 ### 7.4 Bounded Instance Summary
 
@@ -569,7 +569,7 @@ This section summarizes the relationship.
 | **Composition operator ⊗** | **This work** | **Novel** |
 | **Three compatibility conditions (PC, RS, CBAT)** | **This work as a set** | **Novel as a set** |
 | **Composition Preservation Theorem** | **This work** | **Novel** |
-| **Tightness result** | **This work** | **Novel** |
+| **Independence result** | **This work** | **Novel** |
 | **Attack harness methodology** | **This work** | **Novel** |
 
 **The algebra is a synthesis.** It cites each primitive to its source and

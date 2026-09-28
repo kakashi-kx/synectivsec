@@ -169,7 +169,7 @@ Model checking completed. No error has been found.
 This is the first mechanically verified instance of the composition theorem.
 It is a bounded instance; scaling is future work.
 
-### 3.4 Attack harness with condition-level necessity
+### 3.4 Attack harness demonstrating independence of the conditions
 
 The `redteam/` directory contains three runnable attacks, each demonstrating
 that removing one compatibility condition produces a concrete counterexample:
@@ -179,8 +179,8 @@ that removing one compatibility condition produces a concrete counterexample:
 - **CBAT attack** → CI4 (Attestation Soundness) violated
 
 All three attacks succeed. This establishes that PC, RS, and CBAT are
-**individually necessary**, not merely jointly sufficient. The theorem is
-**tight**.
+**individually non-redundant**, not merely jointly sufficient.
+
 
 The attack harness methodology — guard-level weakening while keeping invariants
 strict — is novel to our knowledge. It makes the theorem's non-triviality
@@ -213,13 +213,13 @@ SynectivSec **does** claim:
 - **The composition operator ⊗** as a formal object
 - **The three compatibility conditions** (PC, RS, CBAT) as a sufficient set for
   invariant preservation
-- **The tightness result** — PC, RS, CBAT are individually necessary, verified
+- **The independence result** — PC, RS, CBAT are individually non-redundant, verified
   by the attack harness
 - **The first TLA+ verified instance** of the composition theorem
 - **The attack harness methodology** — guard-level weakening for condition
-  necessity
+  non-redundancy
 
-The novelty is in **the synthesis and the verified tightness**, not in the
+The novelty is in **the synthesis and the verified independence**, not in the
 individual conditions.
 
 ---
