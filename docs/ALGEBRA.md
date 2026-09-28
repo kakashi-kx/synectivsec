@@ -20,7 +20,7 @@ defines:
 
 This algebra describes what is implemented in `tla/Composition.tla`. It is the
 specification; the TLA+ module is the artifact; `tla/RESULT.md` is the verified
-result.
+result. The **complete proof** of the composition theorem is in `PROOF.md`.
 
 **Prior art.** The primitives (delegation, speaks-for, attestation
 transitivity, revocation validity) are from prior work cited in
@@ -242,7 +242,8 @@ where:
 ```
 
 This is a claim about the algebra; it is implicit in the TLA+ model (layers
-share state, not components) but not separately verified.
+share state, not components) but not separately verified. It is stated here
+for completeness, not claimed as a contribution.
 
 ### 3.3 Non-Commutativity
 
@@ -305,7 +306,9 @@ CI3(s) ≡ ∀ i ∈ 1..|h| : h[i].time < r[h[i].principal]
 **Meaning.** A revoked principal cannot act after revocation. This is the
 invariant that catches **revocation races** across domains.
 
-In the verified model, `CI3_RevocationFreshness`.
+In the verified model, `CI3_RevocationFreshness`. This invariant is
+non-trivial: removing the guard that enforces it (in `ActionPermitted`) causes
+CI3 to fail, as demonstrated by `redteam/rs/revocation_race.py`.
 
 ### CI4 — Attestation Soundness
 
@@ -374,8 +377,8 @@ recognize, it escapes the sequence constraint.
 **Attacks prevented:** alphabet escape (CA-5), chain extension (CA-1),
 cross-chain sequence laundering (CA-2).
 
-**Necessity demonstrated by:** `redteam/pc/alphabet_escape.py` — disabling the
-guard-level sequence policy produces a CI2 violation.
+**Non-redundancy demonstrated by:** `redteam/pc/alphabet_escape.py` — disabling
+the guard-level sequence policy produces a CI2 violation.
 
 **Prior art.** Not directly identified. This is a composition constraint
 specific to our framework.
@@ -397,8 +400,8 @@ revocation.
 **Attacks prevented:** revocation race across domains (CA-4), split-brain
 revocation.
 
-**Necessity demonstrated by:** `redteam/rs/revocation_race.py` — removing the
-guard-level revocation check produces a CI3 violation.
+**Non-redundancy demonstrated by:** `redteam/rs/revocation_race.py` — removing
+the guard-level revocation check produces a CI3 violation.
 
 **Prior art.** SPKI RFC 2693 §5.4 formalizes validity intervals — the
 per-certificate time bound. RS applies this to a domain graph with an explicit
@@ -422,7 +425,7 @@ bounding, attestation can be laundered through intermediate domains.
 **Attacks prevented:** attestation laundering (CA-3), replay across boundaries
 (CA-6).
 
-**Necessity demonstrated by:** `redteam/cbat/attestation_laundering.py` —
+**Non-redundancy demonstrated by:** `redteam/cbat/attestation_laundering.py` —
 disabling guard-level attestation reachability produces a CI4 violation.
 
 **Prior art (verified).** CBAT **restates** the "speaks for" transitivity from
@@ -448,20 +451,26 @@ CIk(D ⊗ S ⊗ F) ⟹ CIk(D) ∧ CIk(S) ∧ CIk(F)
 
 The composition preserves every component invariant.
 
-**Proof strategy.** Structural induction over the transition relation (§2).
+**Proof.** A complete structural induction over the transition relation (§2)
+is given in `PROOF.md`. The proof establishes that the base case satisfies
+CI1–CI5 and that each of the three transition rules (Action, Revoke, Cross)
+preserves all five invariants, assuming PC ∧ RS ∧ CBAT.
 
-- **Base case.** A single-layer system trivially preserves its own invariant.
-- **Inductive step.** Suppose the composition of `k` layers preserves CI1–CI5.
-  Adding layer `k+1` preserves them if and only if the compatibility conditions
-  between layer `k+1` and the existing composition hold.
-- **PC** ensures CI2 (sequence soundness) survives the addition of new chains.
-- **RS** ensures CI3 (revocation freshness) survives the addition of new
-  domains.
-- **CBAT** ensures CI4 (attestation soundness) survives the addition of new
-  attestation paths.
+**Summary of the proof structure.**
 
-Each condition blocks one class of counterexample. Removing any one yields a
-concrete violation — which is the Emergent Authority Theorem (§6.2).
+- **Base case.** The initial state `s₀` satisfies CI1–CI5 (vacuously for CI1,
+  CI2, CI3; by reachability reflexivity for CI4; by totality of `DomainPolicy`
+  for CI5).
+- **Inductive step.** Each transition preserves CI1–CI5:
+  - **Action:** PC ensures the new action is in `Σ` (CI2, CI5);
+    the G2 guard ensures authorization and freshness (CI1, CI3);
+    CBAT ensures reachability (CI4).
+  - **Revoke:** history and current domain unchanged; only `revokedAt`
+    changes (CI1–CI5 preserved).
+  - **Cross:** history unchanged; CBAT ensures reachability (CI4).
+
+Each compatibility condition is used in a distinct part of the proof. See
+`PROOF.md` §4 for the explicit dependencies.
 
 **Verification.** The theorem is checked in TLA+ for the minimal instance
 described in `tla/Composition.tla`. TLC exhausts the reachable state space
@@ -474,11 +483,16 @@ described in `tla/Composition.tla`. TLC exhausts the reachable state space
 a trajectory `τ` in `Reach(D ⊗ S ⊗ F)` that violates at least one of CI1–CI5.
 
 **Meaning.** Every failure of a compatibility condition yields a concrete
-attack. This is the red-teamer's theorem: it turns each compatibility condition
-into an attack surface.
+attack. This turns each compatibility condition into an attack surface.
 
-**Verification.** Each condition's non-redundancy is demonstrated by a runnable
-attack in `redteam/`:
+**Note on terminology.** This theorem establishes **independence** of the
+hypothesis: it shows each condition is non-redundant. It does not establish
+**necessity** in the strong sense — that would require proving no weaker set
+of conditions suffices. The weaker claim is the correct one, and it is what
+the attack harness demonstrates.
+
+**Non-redundancy demonstrated by.** Each condition's non-redundancy is
+demonstrated by a runnable attack in `redteam/`:
 
 - `redteam/pc/alphabet_escape.py` — breaks PC, CI2 violated
 - `redteam/rs/revocation_race.py` — breaks RS, CI3 violated
@@ -488,13 +502,16 @@ All three attacks succeed. See `redteam/RESULTS.md`.
 
 ### 6.3 Independence of the Hypothesis
 
-**Corollary.** PC, RS, CBAT are **jointly sufficient and individually
+**Corollary.** PC, RS, CBAT are **jointly sufficient** and **individually
 non-redundant** for the preservation of CI1–CI5 under composition.
 
-**Meaning.** The hypothesis is independent: no condition can be dropped without admitting a counterexample. No claim is made that no weaker set of conditions would suffice.
+**Meaning.** The hypothesis is independent: no condition can be dropped
+without admitting a counterexample. This is not a claim of necessity in the
+strong sense — no claim is made that no weaker condition set exists.
 
-**Verification.** §6.1 establishes sufficiency. §6.2 establishes non-redundancy.
-Together they establish independence.
+**Verification.** §6.1 establishes sufficiency (via the proof in `PROOF.md`).
+§6.2 establishes non-redundancy (via the attack harness). Together they
+establish independence.
 
 ---
 
@@ -516,15 +533,15 @@ TLC model-checks the following:
   states, which is equivalent to CI6 for this bounded instance, but not
   as a general statement.
 - **The proof of §6.1 as a mathematical theorem.** TLC verifies the theorem on
-  one instance. The general proof is by structural induction and is not
-  mechanically checked.
+  one instance. The general proof is by structural induction (`PROOF.md`) and
+  is not mechanically checked.
 
 ### 7.3 What the Attack Harness Checks
 
 - Each compatibility condition is individually non-redundant (via guard-level
   weakening)
 - Each attack produces a concrete TLA+ counterexample
-- The set {PC, RS, CBAT} is independent (non-redundant)
+- The set {PC, RS, CBAT} is independent
 
 ### 7.4 Bounded Instance Summary
 
@@ -541,14 +558,15 @@ TLC model-checks the following:
 | States generated | 11,185,890 |
 | Distinct states | 300,447 |
 | Violations | 0 |
-| Runtime | ~17 seconds |
+| Runtime | ~33 seconds |
 
 ### 7.5 Scaling
 
 The minimal instance is designed to be tractable in seconds. Scaling to larger
 instances (more principals, chains, domains, longer histories) is future work:
 
-- **`tla/CompositionLarge.tla`** — planned. Same theorem, larger instance.
+- **Larger instances** — attempted but the state space grows beyond what TLC
+  can handle in reasonable time. See `LIMITATIONS.md`.
 - **Unbounded verification** — planned. Inductive or symbolic proof.
 
 ---
@@ -581,11 +599,12 @@ claims novelty only for the composition itself.
 
 1. **Unbounded verification.** The current TLA+ model is bounded. A general
    proof (inductive or symbolic) is required for the theorem to be claimed in
-   full generality.
+   full generality. The pen-and-paper proof in `PROOF.md` covers the general
+   case, but is not mechanically checked.
 
 2. **Scaling.** The minimal instance has 6 principals. A larger instance with
    tens of principals and multiple chains is required to demonstrate that the
-   theorem holds beyond the minimal case.
+   theorem holds beyond the minimal case. See `LIMITATIONS.md`.
 
 3. **CI5 as a non-trivial invariant.** In the current model, `DomainPolicyOK`
    is total, so CI5 is trivially true. A model with layered or uncertain
@@ -600,9 +619,9 @@ claims novelty only for the composition itself.
    A direct comparison on the same instance is required for the paper's
    related-work section (flagged in POSITIONING.md §5).
 
-6. **The general proof of §6.1.** The structural induction argument is sketched
-   here. A rigorous proof in a proof assistant (Lean, Coq) would strengthen
-   the claim beyond the TLA+ instance.
+6. **The proof has not been mechanized.** The structural induction in
+   `PROOF.md` is written in natural language. A formalization in Lean, Coq,
+   Isabelle, or TLAPS would strengthen the claim beyond the TLA+ instance.
 
 ---
 
