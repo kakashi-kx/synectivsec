@@ -28,7 +28,7 @@
     11185890 states generated, 300447 distinct states found, 0 states left on queue.
     The depth of the complete state graph search is 5.
 
-Runtime: ~17 seconds (4 parallel workers).
+Runtime: ~33 seconds (4 parallel workers).
 Fingerprint collision probability (calculated): 1.8E-7.
 
 ## Interpretation
